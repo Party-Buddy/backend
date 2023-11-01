@@ -7,11 +7,15 @@ To apply a migration, run (in the repository root directory):
 $ migrate -database "postgresql://$user:$pass@localhost:5432/$dbname?sslmode=disable" -path migrations up
 ```
 
+Replace the variables `$user`, `$pass`, and `$dbname` with appropriate values.
+
 To create a new migration, use (likewise in the repository root):
 
 ```
 $ migrate create -ext sql -dir migrations -seq $name
 ```
+
+Again, put some actual name instead of `$name`.
 
 Tips:
 
