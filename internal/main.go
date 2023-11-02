@@ -2,24 +2,26 @@ package internal
 
 import (
 	"fmt"
-	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
 	"log"
 	"net/http"
-	"os"
-	"party-buddy/internal/handlers"
+	"party-buddy/internal/configuration"
 )
 
 func Main() {
-	r := mux.NewRouter()
-	r.HandleFunc("/", handlers.IndexHandler).Methods("GET")
+	configuration.ConfigureApp()
+	handler := configuration.ConfigureMux()
 
-	port := os.Getenv("PORT")
+	host := viper.GetString("server.host")
+	if host == "" {
+		viper.SetDefault("server.host", "localhost")
+	}
+	port := viper.GetString("server.port")
 	if port == "" {
-		port = "8081"
-		log.Printf("Defaulting to port %s", port)
+		viper.SetDefault("server.port", "8081")
 	}
 
 	log.Printf("Listening on port %s", port)
-	log.Printf("Open http://localhost:%s in the browser", port)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), r))
+	log.Printf("Open http://%s:%s in the browser", host, port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%s", host, port), handler))
 }
