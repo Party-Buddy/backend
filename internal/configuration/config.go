@@ -12,6 +12,7 @@ const (
 	appEnvDbPrefix = "PARTY_BUDDY_DB"
 )
 
+// configureEnvs maps the config values to proper environment variables
 func configureEnvs() {
 	_ = viper.BindEnv("server.host", appEnvPrefix+"_HOST")
 	_ = viper.BindEnv("server.port", appEnvPrefix+"_PORT")
@@ -23,6 +24,17 @@ func configureEnvs() {
 	_ = viper.BindEnv("db.password", appEnvDbPrefix+"_PASSWORD")
 }
 
+// ConfigureApp try to get configuration from ./configs/conf.[ext] file.
+// According to viper documentation [ext] may be:
+//
+// - json
+//
+// - yml
+//
+// - and some others
+//
+// Also here configureEnvs is called.
+// If some envs is set then configuration will have the values specified in the appropriate envs
 func ConfigureApp() {
 	viper.SetConfigName("conf")
 	viper.AddConfigPath("./configs")
@@ -35,6 +47,7 @@ func ConfigureApp() {
 	viper.AutomaticEnv()
 }
 
+// ConfigureMux configures the handlers for HTTP routes and methods
 func ConfigureMux() *mux.Router {
 	r := mux.NewRouter()
 	r.HandleFunc("/", handlers.IndexHandler).Methods("GET")
