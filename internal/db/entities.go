@@ -1,11 +1,14 @@
 package db
 
-import "time"
+import (
+	"github.com/google/uuid"
+	"time"
+)
 
 // ImageEntity represents the metadata for images.
 // Table - images.
 type ImageEntity struct {
-	ID string // TODO: find uuid
+	ID uuid.NullUUID
 
 	// Uploaded default value is false.
 	// If image is uploaded the value true.
@@ -15,7 +18,7 @@ type ImageEntity struct {
 	// If ReadOnly == true upload should fail.
 	ReadOnly bool
 
-	OwnerID string // TODO: uuid
+	OwnerID uuid.NullUUID
 
 	// CreatedAt date and time created.
 	CreatedAt time.Time
@@ -24,14 +27,14 @@ type ImageEntity struct {
 // SessionImageRefsEntity tracks images referenced in live sessions.
 // Table - session_image_refs.
 type SessionImageRefsEntity struct {
-	ImageID   string // TODO: uuid
-	SessionID string // TODO: uuid
+	ImageID   uuid.NullUUID
+	SessionID uuid.NullUUID
 }
 
 // ImageRefsEntity - is used for tracking image using.
 // View - image_refs_view
 type ImageRefsEntity struct {
-	ImageID string // TODO: uuid
+	ImageID uuid.NullUUID
 
 	// RefCount is the number of public games + sessions + tasks
 	// which use the image with id == ImageID
@@ -48,7 +51,7 @@ const (
 // UserEntity - info about user roles
 // Table - users
 type UserEntity struct {
-	ID string // TODO: uuid
+	ID uuid.NullUUID
 
 	Role string
 }
@@ -72,10 +75,10 @@ const (
 // TaskEntity - provides info about task
 // Table - tasks
 type TaskEntity struct {
-	ID string // TODO: uuid
+	ID uuid.NullUUID
 
-	OwnerID string // TODO: uuid
-	ImageID string // TODO uuid
+	OwnerID uuid.NullUUID
+	ImageID uuid.NullUUID
 
 	Name                string
 	Description         string
@@ -100,7 +103,7 @@ type CheckedTextTaskEntity struct {
 // One choice task can have many options.
 // Table - choice_task_options
 type ChoiceTaskOptionsEntity struct {
-	TaskID string // TODO: uuid
+	TaskID uuid.NullUUID
 
 	// Alternative is one of the option for the Task with id == TaskID
 	Alternative string
@@ -112,13 +115,13 @@ type ChoiceTaskOptionsEntity struct {
 // GameEntity represents the game
 // Table - games
 type GameEntity struct {
-	ID string // TODO: uuid
+	ID uuid.NullUUID
 
 	Name        string
 	Description string
 
-	OwnerID string // TODO: uuid
-	ImageID string // TODO: uuid, may be nil
+	OwnerID uuid.NullUUID
+	ImageID uuid.NullUUID // may be nil
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
