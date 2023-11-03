@@ -126,3 +126,14 @@ type GameEntity struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+// GameTaskEntity represents the one task of the game.
+// Game can have many tasks, and task can be in many games.
+// Table - game_tasks
+type GameTaskEntity struct {
+	GameID uuid.NullUUID
+	TaskID uuid.NullUUID
+
+	// TaskIndex is used to define tasks order in game
+	TaskIndex int
+}
