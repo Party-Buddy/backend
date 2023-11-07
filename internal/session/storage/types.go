@@ -1,6 +1,10 @@
 package storage
 
 import (
+	"crypto/rand"
+	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,17 +18,57 @@ type (
 	ClientId  uuid.UUID
 )
 
+func NewSessionId() SessionId {
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		panic(fmt.Sprintf("could not generate session id: %v", err))
+	}
+	return SessionId(uuid)
+}
+
+func NewPlayerId() PlayerId {
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		panic(fmt.Sprintf("could not generate player id: %v", err))
+	}
+	return PlayerId(uuid)
+}
+
 // An InviteCode is a short code used for session discovery.
 // Only valid until the game starts.
 type InviteCode string
 
+func NewInviteCode() InviteCode {
+	// We need to generate an arbitrary invite code satisfying [A-Z0-9]{6}.
+	// There are 36 possibilities for each character.
+	var builder strings.Builder
+	maxN := big.NewInt(36)
+
+	for i := 0; i < 6; i++ {
+		r, err := rand.Int(rand.Reader, maxN)
+		if err != nil {
+			panic(fmt.Sprintf("could not generate invite code: %v", err))
+		}
+
+		switch n := r.Uint64(); {
+		case n < 10:
+			builder.WriteByte(byte('0' + n)) // n ∈ [0, 9]
+		default:
+			builder.WriteByte(byte('A' + n - 10)) // n ∈ [10, 35]
+		}
+	}
+
+	return InviteCode(builder.String())
+}
+
 type session struct {
-	id             SessionId
-	game           Game
-	players        map[PlayerId]Player
-	clients        map[ClientId]PlayerId
-	removedClients map[ClientId]struct{}
-	state          state
+	id            SessionId
+	game          Game
+	players       map[PlayerId]Player
+	playersMax    int
+	clients       map[ClientId]PlayerId
+	bannedClients map[ClientId]struct{}
+	state         state
 }
 
 type Game struct {
@@ -39,6 +83,10 @@ type Player struct {
 	Id       PlayerId
 	ClientId ClientId
 	Nickname string
+
+	// TODO:
+	// // Connection holds a channel that allows sending events to the client.
+	// Connection chan<- event.ServerEvent
 }
 
 type PollOption struct {

@@ -6,7 +6,7 @@ type state interface {
 	isState() // an unexported marker method so we don't have scary interface{}s floating around
 }
 
-// An awaitingPlayerState is an initial session state during which the game is not yet started.
+// An awaitingPlayersState is an initial session state during which the game is not yet started.
 // New players can discover the session via its invite code or session id, only the latter of which is permanent.
 // (The invite code expires once the game starts — or the session is closed before it starts if the owner quits.)
 type awaitingPlayersState struct {
@@ -90,3 +90,12 @@ func (*taskEndedState) isState() {}
 // "But," you may ask, "what about the game-ended state?"
 // We remove a session once it reaches this state, so representing it is unnecessary.
 // Thus we don't.
+
+// Assert all of these are states (to catch missing methods).
+var (
+	_ state = &awaitingPlayersState{}
+	_ state = &gameStartedState{}
+	_ state = &taskStartedState{}
+	_ state = &pollStartedState{}
+	_ state = &taskEndedState{}
+)
