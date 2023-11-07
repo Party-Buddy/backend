@@ -64,13 +64,13 @@ func (ChoiceTaskAnswer) isTaskAnswer()  {}
 type PollDurationer interface {
 	// PollDuration calculates a poll duration for the given session.
 	// The manager mutex must be locked before calling this method.
-	PollDuration(s *Unsafe, sid SessionId) time.Duration
+	PollDuration(s *UnsafeStorage, sid SessionId) time.Duration
 }
 
 // A FixedPollDuration computes a duration that does not depend on the session state.
 type FixedPollDuration time.Duration
 
-func (d FixedPollDuration) PollDuration(s *Unsafe, sid SessionId) time.Duration {
+func (d FixedPollDuration) PollDuration(s *UnsafeStorage, sid SessionId) time.Duration {
 	return time.Duration(d)
 }
 
@@ -78,6 +78,6 @@ func (d FixedPollDuration) PollDuration(s *Unsafe, sid SessionId) time.Duration 
 // The total duration is calculated as `playerCount * timePerPlayer`.
 type DynamicPollDuration time.Duration
 
-func (d DynamicPollDuration) PollDuration(s *Unsafe, sid SessionId) time.Duration {
+func (d DynamicPollDuration) PollDuration(s *UnsafeStorage, sid SessionId) time.Duration {
 	return time.Duration(d) * time.Duration(s.PlayerCount(sid))
 }

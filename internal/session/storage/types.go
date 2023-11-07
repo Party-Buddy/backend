@@ -11,11 +11,24 @@ import (
 )
 
 type (
-	// The ImageId identifies a particular image stored on this server.
-	ImageId   string
+	// An ImageId identifies a particular image stored on this server.
+	ImageId string
+
+	// A SessionId is a permanent session identifier, valid for the lifetime of the session.
 	SessionId uuid.UUID
-	PlayerId  uuid.UUID
-	ClientId  uuid.UUID
+
+	// A PlayerId identifies a particular player in a session.
+	//
+	// It is generated randomly when a client joins and is only valid in the context of the session.
+	// Unlike their [ClientId], the client's PlayerId is shared among other session players.
+	PlayerId uuid.UUID
+
+	// A ClientId identifies a particular client.
+	// The ClientId is a secret value that is used for access control;
+	// for that reason it's never shared with other clients.
+	//
+	// When a client joins a session, they are assigned a [PlayerId], which, unlike the ClientId, is public.
+	ClientId uuid.UUID
 )
 
 func NewSessionId() SessionId {
@@ -38,13 +51,22 @@ func NewPlayerId() PlayerId {
 // Only valid until the game starts.
 type InviteCode string
 
+const (
+	// InviteCodeAlphabetSize is the cardinality of the alphabet [A-Z0-9].
+	InviteCodeAlphabetSize = 36
+
+	InviteCodeLength = 6
+
+	// MaxInviteCodeCount is the total number of possible distinct invite codes.
+	// The value is computed as pow(InviteCodeAlphabetSize, InviteCodeLength)
+	MaxInviteCodeCount = 2_176_782_336
+)
+
 func NewInviteCode() InviteCode {
-	// We need to generate an arbitrary invite code satisfying [A-Z0-9]{6}.
-	// There are 36 possibilities for each character.
 	var builder strings.Builder
 	maxN := big.NewInt(36)
 
-	for i := 0; i < 6; i++ {
+	for i := 0; i < InviteCodeLength; i++ {
 		r, err := rand.Int(rand.Reader, maxN)
 		if err != nil {
 			panic(fmt.Sprintf("could not generate invite code: %v", err))
@@ -100,7 +122,7 @@ type PollOption struct {
 // An invalid `OptionIdx` (its zero value) indicates a player has not selected an option yet.
 type OptionIdx int
 
-// NewOptionsIdx returns a new `OptionIdx`.
+// NewOptionIdx returns a new `OptionIdx`.
 // It will be valid if `idx >= 0 && idx < INT_MAX`.
 func NewOptionIdx(idx int) OptionIdx {
 	if r := OptionIdx(idx + 1); int(r) > 0 {

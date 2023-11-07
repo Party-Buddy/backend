@@ -1,46 +1,43 @@
 package storage
 
-import (
-	"fmt"
-	"sync"
-)
+import "fmt"
 
-// A Manager encapsulates an `Unsafe` and provides a thread-safe interface to the storage.
-type Manager struct {
-	mtx   sync.Mutex
-	inner Unsafe
-}
-
-// Atomically performs the provided operation on the inner storage atomically.
-// While the function is being run, no other goroutine may access the inner storage.
-// This function is not re-entrant: do not call Atomically in `f`.
-func Atomically[R any](mgr *Manager, f func(s *Unsafe) R) R {
-	mgr.mtx.Lock()
-	defer mgr.mtx.Unlock()
-
-	return f(&mgr.inner)
-}
-
-// Unsafe stores all the session state.
+// UnsafeStorage stores all the session state.
 // By itself it does not provide any concurrency guarantees: if you need them, use a [Manager] instead.
-type Unsafe struct {
+type UnsafeStorage struct {
 	sessions    map[SessionId]*session
 	inviteCodes map[InviteCode]SessionId
 }
 
+// InviteCodeLimit is the maximum allowed number of non-expired invite codes.
+const InviteCodeLimit = MaxInviteCodeCount / 2
+
+func (s *UnsafeStorage) newInviteCode() (InviteCode, error) {
+	if len(s.inviteCodes) >= InviteCodeLimit {
+		return InviteCode(""), fmt.Errorf("exceeded the limit on active invite codes: %v", InviteCodeLimit)
+	}
+
+	for {
+		code := NewInviteCode()
+		if _, exists := s.inviteCodes[code]; !exists {
+			return code, nil
+		}
+	}
+}
+
 // SessionExists returns `true` if a session with the given `sid` exists.
-func (s *Unsafe) SessionExists(sid SessionId) bool {
+func (s *UnsafeStorage) SessionExists(sid SessionId) bool {
 	return s.sessions[sid] != nil
 }
 
 // SidByInviteCode returns the session id of a session with the provided invite code.
 // If no such session exists, returns nil.
-func (s *Unsafe) SidByInviteCode(code InviteCode) (sid SessionId, ok bool) {
+func (s *UnsafeStorage) SidByInviteCode(code InviteCode) (sid SessionId, ok bool) {
 	sid, ok = s.inviteCodes[code]
 	return
 }
 
-func (s *Unsafe) sessionById(sid SessionId) (*session, error) {
+func (s *UnsafeStorage) sessionById(sid SessionId) (*session, error) {
 	if session := s.sessions[sid]; session != nil {
 		return session, nil
 	}
@@ -51,8 +48,18 @@ func (s *Unsafe) sessionById(sid SessionId) (*session, error) {
 // NewSession creates a new session.
 // The state is set to awaitingPlayersState, and the owner is added as the first player in the lobby.
 // Returns the newly created session's ID, its invite code, as well as the [PlayerId] of the owner.
-func (s *Unsafe) NewSession(game Game, owner ClientId, ownerNickname string, requireReady bool, playersMax int) (sid SessionId, code InviteCode, ownerId PlayerId, err error) {
-	code = NewInviteCode()
+func (s *UnsafeStorage) NewSession(
+	game Game,
+	owner ClientId,
+	ownerNickname string,
+	requireReady bool,
+	playersMax int,
+) (sid SessionId, code InviteCode, ownerId PlayerId, err error) {
+	code, err = s.newInviteCode()
+	if err != nil {
+		return
+	}
+
 	sid = NewSessionId()
 	ownerId = NewPlayerId()
 
@@ -74,12 +81,13 @@ func (s *Unsafe) NewSession(game Game, owner ClientId, ownerNickname string, req
 			owner:        ownerId,
 		},
 	}
+	s.inviteCodes[code] = sid
 
 	return
 }
 
 // PlayerByClientId returns a player in a session with the given clientId.
-func (s *Unsafe) PlayerByClientId(sid SessionId, clientId ClientId) (Player, error) {
+func (s *UnsafeStorage) PlayerByClientId(sid SessionId, clientId ClientId) (Player, error) {
 	session, err := s.sessionById(sid)
 	if err != nil {
 		return Player{}, err
@@ -94,7 +102,7 @@ func (s *Unsafe) PlayerByClientId(sid SessionId, clientId ClientId) (Player, err
 }
 
 // PlayerById returns a player in a session with the given playerId.
-func (s *Unsafe) PlayerById(sid SessionId, playerId PlayerId) (player Player, err error) {
+func (s *UnsafeStorage) PlayerById(sid SessionId, playerId PlayerId) (player Player, err error) {
 	session, err := s.sessionById(sid)
 	if err != nil {
 		return
@@ -109,7 +117,7 @@ func (s *Unsafe) PlayerById(sid SessionId, playerId PlayerId) (player Player, er
 }
 
 // PlayerCount returns the number of players currently in the session.
-func (s *Unsafe) PlayerCount(sid SessionId) int {
+func (s *UnsafeStorage) PlayerCount(sid SessionId) int {
 	if session, ok := s.sessions[sid]; ok {
 		return len(session.players)
 	}
@@ -118,7 +126,7 @@ func (s *Unsafe) PlayerCount(sid SessionId) int {
 }
 
 // IsClientBanned checks if a client with the given id is banned from a session.
-func (s *Unsafe) IsClientBanned(sid SessionId, clientId ClientId) bool {
+func (s *UnsafeStorage) IsClientBanned(sid SessionId, clientId ClientId) bool {
 	session := s.sessions[sid]
 	if session == nil {
 		return false
@@ -129,7 +137,7 @@ func (s *Unsafe) IsClientBanned(sid SessionId, clientId ClientId) bool {
 
 // banClient adds a client to a list of clients banned from a session.
 // The client, if they were present, is not removed from the game.
-func (s *Unsafe) banClient(sid SessionId, clientId ClientId) {
+func (s *UnsafeStorage) banClient(sid SessionId, clientId ClientId) {
 	session := s.sessions[sid]
 	if session == nil {
 		return
@@ -138,7 +146,7 @@ func (s *Unsafe) banClient(sid SessionId, clientId ClientId) {
 }
 
 // addPlayer adds a client to a session as another player.
-func (s *Unsafe) addPlayer(sid SessionId, clientId ClientId, nickname string) (player Player, err error) {
+func (s *UnsafeStorage) addPlayer(sid SessionId, clientId ClientId, nickname string) (player Player, err error) {
 	session, err := s.sessionById(sid)
 	if err != nil {
 		return
@@ -162,7 +170,7 @@ func (s *Unsafe) addPlayer(sid SessionId, clientId ClientId, nickname string) (p
 }
 
 // removePlayer removes a client from a session.
-func (s *Unsafe) removePlayer(sid SessionId, clientId ClientId) (PlayerId, bool) {
+func (s *UnsafeStorage) removePlayer(sid SessionId, clientId ClientId) (PlayerId, bool) {
 	session := s.sessions[sid]
 	if session == nil {
 		return PlayerId{}, false
