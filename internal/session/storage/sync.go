@@ -11,9 +11,9 @@ type SyncStorage struct {
 // Atomically performs the provided operation on the inner storage atomically.
 // While the function is being run, no other goroutine may access the inner storage.
 // This function is not re-entrant: do not call Atomically in `f`.
-func Atomically[R any](s *SyncStorage, f func(s *UnsafeStorage) R) R {
+func (s *SyncStorage) Atomically(f func(s *UnsafeStorage)) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	return f(&s.inner)
+	f(&s.inner)
 }
