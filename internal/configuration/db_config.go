@@ -6,6 +6,9 @@ import (
 	"github.com/spf13/viper"
 )
 
+// GetDBConfig provides the *pgxpool.Config by
+// creating a connection string and using pgxpool.ParseConfig.
+// Connection string is created with info from viper
 func GetDBConfig() (*pgxpool.Config, error) {
 	user := viper.GetString("db.user")
 	if user == "" {

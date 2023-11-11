@@ -5,12 +5,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// DBPool is a wrapper over *pgxpool.Pool
 type DBPool struct {
 	pool *pgxpool.Pool
 }
 
-func InitDBPool() (DBPool, error) {
-	pool, err := pgxpool.New(context.Background(), "")
+// InitDBPool initializes the DBPool by given *pgxpool.Config
+func InitDBPool(ctx context.Context, config *pgxpool.Config) (DBPool, error) {
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return DBPool{}, err
 	}
