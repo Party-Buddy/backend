@@ -1,4 +1,4 @@
-package serialize
+package ws
 
 import (
 	"encoding/json"
