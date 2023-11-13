@@ -1,6 +1,8 @@
 package ws
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -48,6 +50,12 @@ type BaseMessage struct {
 	MsgId MessageId   `json:"msg-id"`
 	Kind  MessageKind `json:"kind"`
 	Time  Time        `json:"time"`
+}
+
+// A RecvMessage is implemented by protocol messages that can be received from a client.
+type RecvMessage interface {
+	Validate(ctx context.Context) error
+	isRecvMessage()
 }
 
 type ErrorKind string
@@ -102,4 +110,144 @@ func (e *Error) String() string {
 type MessageError struct {
 	BaseMessage
 	Error
+}
+
+type MessageJoin struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageJoin) Validate(ctx context.Context) error {
+	// TODO
+	return nil
+}
+
+type MessageReady struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageReady) Validate(ctx context.Context) error {
+	// TODO
+	return nil
+}
+
+type MessageKick struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageKick) Validate(ctx context.Context) error {
+	// TODO
+	return nil
+}
+
+type MessageLeave struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageLeave) Validate(ctx context.Context) error {
+	// TODO
+	return nil
+}
+
+type MessageTaskAnswer struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageTaskAnswer) Validate(ctx context.Context) error {
+	// TODO
+	return nil
+}
+
+type MessagePollChoose struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessagePollChoose) Validate(ctx context.Context) error {
+	// TODO
+	return nil
+}
+
+func (*MessageJoin) isRecvMessage()       {}
+func (*MessageReady) isRecvMessage()      {}
+func (*MessageKick) isRecvMessage()       {}
+func (*MessageLeave) isRecvMessage()      {}
+func (*MessageTaskAnswer) isRecvMessage() {}
+func (*MessagePollChoose) isRecvMessage() {}
+
+type UnknownMessageError struct {
+	kind MessageKind
+}
+
+func (e *UnknownMessageError) Error() string {
+	return fmt.Sprintf("unknown message kind `%v`", e.kind)
+}
+
+type DecodeError struct {
+	cause error
+}
+
+func (e *DecodeError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *DecodeError) Unwrap() error {
+	return e.cause
+}
+
+// ParseMessage decodes and validates a protocol message.
+//
+// If the supplied data is invalid, returns one of the following errors:
+// - [json.SyntaxError] if the data has a syntactic error
+// - [json.UnmarshalTypeError] if a type error was found during unmarshaling
+// - [DecodeError] if some an error has occurred during decoding
+// - [UnknownMessageError] if the message data specifies an unknown message kind
+// - or possibly some other error type.
+func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
+	var base BaseMessage
+	if err := json.Unmarshal(data, &base); err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+
+	var msg RecvMessage
+
+	switch base.Kind {
+	case MsgKindJoin:
+		msg = &MessageJoin{}
+	case MsgKindReady:
+		msg = &MessageReady{}
+	case MsgKindKick:
+		msg = &MessageKick{}
+	case MsgKindLeave:
+		msg = &MessageLeave{}
+	case MsgKindTaskAnswer:
+		msg = &MessageTaskAnswer{}
+	case MsgKindPollChoose:
+		msg = &MessagePollChoose{}
+	default:
+		return nil, &UnknownMessageError{kind: base.Kind}
+	}
+
+	if err := decoder.Decode(msg); err != nil {
+		return nil, &DecodeError{cause: err}
+	}
+
+	if err := msg.Validate(ctx); err != nil {
+		return nil, err
+	}
+
+	return msg, nil
 }
