@@ -10,5 +10,10 @@ func (r RecordNotFound) Error() string {
 }
 
 var (
+	ErrInvalidDBValue = errors.New("invalid-db-value")
+)
+
+var (
 	ErrGeneratedUUIDInvalid = errors.New("generated-uuid-invalid")
+	ErrImageIsReadOnly      = errors.New("img-read-only")
 )
