@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 	"image"
 	"image/png"
+	"log"
 	"os"
 	"strings"
 )
@@ -63,6 +64,7 @@ func (is ImageStorage) NewImgMetadataForOwner(ctx context.Context, owner uuid.UU
 //
 // If something goes wrong the transaction is rolled back and the file is deleted (if it had been opened)
 //
+// TODO: add owner_id checking
 // TODO: what should we do with updating image?
 func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UUID) error {
 	transaction, err := is.pool.Pool().Begin(ctx)
@@ -78,6 +80,7 @@ func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UU
 
 	if err != nil {
 		_ = transaction.Rollback(ctx)
+		log.Printf("Failed to get readonly, uploaded image metadata")
 		return err
 	}
 
@@ -109,14 +112,14 @@ func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UU
 		UPDATE images SET uploaded = TRUE WHERE id = $1
 		`, dbImgId).Scan()
 
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		_ = transaction.Rollback(ctx)
 		_ = os.Remove(GetImgDirectory() + imgID.String())
 		return err
 	}
 
 	err = transaction.Commit(ctx)
-	if errors.Is(err, pgx.ErrTxCommitRollback) {
+	if err != nil && !errors.Is(err, pgx.ErrTxCommitRollback) {
 		_ = os.Remove(GetImgDirectory() + imgID.String())
 		return err
 	}

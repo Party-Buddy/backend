@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"github.com/spf13/viper"
 	"log"
@@ -43,12 +44,23 @@ func isImagePathAccessible() error {
 
 func Main() {
 	configuration.ConfigureApp()
-	handler := handlers.ConfigureMux()
 
 	err := isImagePathAccessible()
 	if err != nil {
 		log.Fatalf("Failed to test image path accessibility: %v", err.Error())
 	}
+
+	dbPoolConf, err := db.GetDBConfig()
+	if err != nil {
+		log.Fatalf("Failed to init db config: %v", err.Error())
+	}
+
+	dbpool, err := db.InitDBPool(context.Background(), dbPoolConf)
+	if err != nil {
+		log.Fatalf("Failed to init db pool: %v", err.Error())
+	}
+
+	handler := handlers.ConfigureMux(&dbpool)
 
 	host := viper.GetString("server.host")
 	if host == "" {
