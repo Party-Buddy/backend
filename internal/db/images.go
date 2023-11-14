@@ -9,12 +9,16 @@ func NewImgMetadataForOwner(ctx context.Context, pool DBPool, owner uuid.UUID) (
 	var retImgUUID uuid.NullUUID
 
 	err := pool.Pool().QueryRow(ctx, `
-		INSERT INTO images (image_id, uploaded, read_only, owner_id, created_at) VALUES 
-			(DEFAULT, false, false, $1, DEFAULT) RETURNING image_id
+		INSERT INTO images (id, uploaded, read_only, owner_id, created_at) VALUES 
+			(DEFAULT, false, false, $1, DEFAULT) RETURNING id
 		`, uuid.NullUUID{UUID: owner, Valid: true}).Scan(&retImgUUID)
 
 	if err != nil {
 		return retImgUUID, err
 	}
+	if !retImgUUID.Valid {
+		return retImgUUID, ErrGeneratedUUIDInvalid
+	}
+
 	return retImgUUID, nil
 }

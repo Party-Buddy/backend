@@ -6,11 +6,12 @@ import (
 	"log"
 	"net/http"
 	"party-buddy/internal/configuration"
+	"party-buddy/internal/handlers"
 )
 
 func Main() {
 	configuration.ConfigureApp()
-	handler := configuration.ConfigureMux()
+	handler := handlers.ConfigureMux()
 
 	host := viper.GetString("server.host")
 	if host == "" {

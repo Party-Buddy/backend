@@ -1,10 +1,8 @@
 package configuration
 
 import (
-	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 	"log"
-	"party-buddy/internal/handlers"
 )
 
 const (
@@ -49,11 +47,4 @@ func ConfigureApp() {
 
 	configureEnvs()
 	viper.AutomaticEnv()
-}
-
-// ConfigureMux configures the handlers for HTTP routes and methods
-func ConfigureMux() *mux.Router {
-	r := mux.NewRouter()
-	r.HandleFunc("/", handlers.IndexHandler).Methods("GET")
-	return r
 }
