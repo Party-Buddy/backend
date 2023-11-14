@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/cohesivestack/valgo"
+	"party-buddy/internal/validate"
 	"time"
 )
 
@@ -47,14 +49,23 @@ func (t Time) MarshalJSON() ([]byte, error) {
 }
 
 type BaseMessage struct {
-	MsgId MessageId   `json:"msg-id"`
-	Kind  MessageKind `json:"kind"`
-	Time  Time        `json:"time"`
+	MsgId *MessageId   `json:"msg-id"`
+	Kind  *MessageKind `json:"kind"`
+	Time  *Time        `json:"time"`
+}
+
+func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+
+	return f.
+		Is(validate.FieldValue(m.MsgId, "msg-id", "msg-id").Set()).
+		Is(validate.FieldValue(m.Kind, "kind", "kind").Set()).
+		Is(validate.FieldValue(m.Time, "time", "time").Set())
 }
 
 // A RecvMessage is implemented by protocol messages that can be received from a client.
 type RecvMessage interface {
-	Validate(ctx context.Context) error
+	validate.Validator
 	isRecvMessage()
 }
 
@@ -118,9 +129,10 @@ type MessageJoin struct {
 	// TODO
 }
 
-func (m *MessageJoin) Validate(ctx context.Context) error {
+func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
 	// TODO
-	return nil
+	return f.New()
 }
 
 type MessageReady struct {
@@ -129,9 +141,10 @@ type MessageReady struct {
 	// TODO
 }
 
-func (m *MessageReady) Validate(ctx context.Context) error {
+func (m *MessageReady) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
 	// TODO
-	return nil
+	return f.New()
 }
 
 type MessageKick struct {
@@ -140,9 +153,10 @@ type MessageKick struct {
 	// TODO
 }
 
-func (m *MessageKick) Validate(ctx context.Context) error {
+func (m *MessageKick) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
 	// TODO
-	return nil
+	return f.New()
 }
 
 type MessageLeave struct {
@@ -151,9 +165,10 @@ type MessageLeave struct {
 	// TODO
 }
 
-func (m *MessageLeave) Validate(ctx context.Context) error {
+func (m *MessageLeave) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
 	// TODO
-	return nil
+	return f.New()
 }
 
 type MessageTaskAnswer struct {
@@ -162,9 +177,10 @@ type MessageTaskAnswer struct {
 	// TODO
 }
 
-func (m *MessageTaskAnswer) Validate(ctx context.Context) error {
+func (m *MessageTaskAnswer) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
 	// TODO
-	return nil
+	return f.New()
 }
 
 type MessagePollChoose struct {
@@ -173,9 +189,10 @@ type MessagePollChoose struct {
 	// TODO
 }
 
-func (m *MessagePollChoose) Validate(ctx context.Context) error {
+func (m *MessagePollChoose) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
 	// TODO
-	return nil
+	return f.New()
 }
 
 func (*MessageJoin) isRecvMessage()       {}
@@ -208,15 +225,17 @@ func (e *DecodeError) Unwrap() error {
 // ParseMessage decodes and validates a protocol message.
 //
 // If the supplied data is invalid, returns one of the following errors:
-// - [json.SyntaxError] if the data has a syntactic error
-// - [json.UnmarshalTypeError] if a type error was found during unmarshaling
 // - [DecodeError] if some an error has occurred during decoding
 // - [UnknownMessageError] if the message data specifies an unknown message kind
+// - [valgo.Error] if validation fails
 // - or possibly some other error type.
 func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 	var base BaseMessage
 	if err := json.Unmarshal(data, &base); err != nil {
 		return nil, err
+	}
+	if val := base.Validate(ctx); !val.Valid() {
+		return nil, val.Error()
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -224,7 +243,7 @@ func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 
 	var msg RecvMessage
 
-	switch base.Kind {
+	switch *base.Kind {
 	case MsgKindJoin:
 		msg = &MessageJoin{}
 	case MsgKindReady:
@@ -238,15 +257,15 @@ func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 	case MsgKindPollChoose:
 		msg = &MessagePollChoose{}
 	default:
-		return nil, &UnknownMessageError{kind: base.Kind}
+		return nil, &UnknownMessageError{kind: *base.Kind}
 	}
 
 	if err := decoder.Decode(msg); err != nil {
 		return nil, &DecodeError{cause: err}
 	}
 
-	if err := msg.Validate(ctx); err != nil {
-		return nil, err
+	if val := msg.Validate(ctx); !val.Valid() {
+		return nil, val.Error()
 	}
 
 	return msg, nil
