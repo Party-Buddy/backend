@@ -33,7 +33,9 @@ func ImgTestHandler(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	newImgUUID, err := db.NewImgMetadataForOwner(context.Background(), dbpool, uuid.New())
+	imgStorage := db.InitImageStorage(&dbpool)
+
+	newImgUUID, err := imgStorage.NewImgMetadataForOwner(context.Background(), uuid.New())
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprintf(w, "error generating image metadata: %v", err.Error())
