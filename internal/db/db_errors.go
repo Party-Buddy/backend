@@ -10,7 +10,8 @@ func (r RecordNotFound) Error() string {
 }
 
 var (
-	ErrInvalidDBValue = errors.New("invalid-db-value")
+	ErrInvalidDBValue       = errors.New("invalid-db-value")
+	ErrToManyEntitiesWithID = errors.New("too-many-entities-with-id")
 )
 
 var (
