@@ -78,11 +78,11 @@ func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UU
 		return err
 	}
 
-	dbImgId := uuid.NullUUID{UUID: imgID, Valid: true}
+	dbImgID := uuid.NullUUID{UUID: imgID, Valid: true}
 	var isReadOnly, isUploaded pgtype.Bool
 	err = transaction.QueryRow(ctx, `
 		SELECT read_only, uploaded FROM images WHERE id = $1
-		`, dbImgId).Scan(&isReadOnly, &isUploaded)
+		`, dbImgID).Scan(&isReadOnly, &isUploaded)
 
 	if err != nil {
 		_ = transaction.Rollback(ctx)
@@ -116,7 +116,7 @@ func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UU
 
 	err = transaction.QueryRow(ctx, `
 		UPDATE images SET uploaded = TRUE WHERE id = $1
-		`, dbImgId).Scan()
+		`, dbImgID).Scan()
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		_ = transaction.Rollback(ctx)
@@ -138,11 +138,11 @@ func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UU
 // TODO: add owner_id checking?
 func (is ImageStorage) GetById(ctx context.Context, imgID uuid.UUID) (image.Image, error) {
 
-	dbImgId := uuid.NullUUID{UUID: imgID, Valid: true}
+	dbImgID := uuid.NullUUID{UUID: imgID, Valid: true}
 	var isUploaded pgtype.Bool
 	err := is.pool.Pool().QueryRow(ctx, `
 		SELECT uploaded FROM images WHERE id = $1
-		`, dbImgId).Scan(&isUploaded)
+		`, dbImgID).Scan(&isUploaded)
 
 	if err != nil {
 		log.Printf("Failed to get uploaded image metadata")
@@ -172,6 +172,19 @@ func (is ImageStorage) GetById(ctx context.Context, imgID uuid.UUID) (image.Imag
 	return img, nil
 }
 
-// TODO: GetMetadata
+func (is ImageStorage) GetMetadataByIDs(ctx context.Context, imgIDs []uuid.NullUUID) ([]ImageEntity, error) {
+	rows, err := is.pool.Pool().Query(ctx, `
+		SELECT * FROM images WHERE id = ANY ($1)
+		`, imgIDs)
+	if err != nil {
+		return []ImageEntity{}, err
+	}
+
+	entities, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[ImageEntity])
+	if err != nil {
+		return []ImageEntity{}, err
+	}
+	return entities, nil
+}
+
 // TODO: GetDataFromRefsCountView
-// TODO: GetImage

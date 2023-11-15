@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/jpeg"
 	"image/png"
+	"log"
 	"net/http"
 	"party-buddy/internal/db"
 )
@@ -26,12 +27,28 @@ func ImgTestHandler(dbpool *db.DBPool, w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	_, err = fmt.Fprintf(w, "generated img uuid: %v", newImgUUID.UUID.String())
+	entities, err := imgStorage.GetMetadataByIDs(context.Background(), []uuid.NullUUID{newImgUUID})
+	log.Printf("Got %v entities", len(entities))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "Generated uuid: %v\nerror getting image metadata: %v", newImgUUID.UUID.String(), err.Error())
 		return
 	}
+
+	if len(entities) <= 0 {
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, "Generated uuid: %v\nGot zero entities", newImgUUID.UUID.String())
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	first := entities[0]
+	_, _ = fmt.Fprintf(w, "generated img info: {\n\tid: %v\n\towner_id: %v\n\tread_only: %v\n\tuploaded: %v\n\tcreated_at: %v\n}",
+		first.ID.UUID.String(),
+		first.OwnerID.UUID.String(),
+		first.ReadOnly,
+		first.Uploaded,
+		first.CreatedAt.String())
 }
 
 // UploadImgHandler is used for /api/v1/images/{image-id}
