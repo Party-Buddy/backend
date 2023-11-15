@@ -5,28 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/spf13/viper"
-	"os"
-	"strings"
 )
-
-var imgPath string
-
-// GetImgDirectory returns the image directory path, which ends with os.PathSeparator
-func GetImgDirectory() string {
-	if imgPath != "" {
-		return imgPath
-	}
-
-	imgPath = viper.GetString("img.path")
-	if imgPath == "" {
-		return ""
-	}
-	if !strings.HasSuffix(imgPath, string(os.PathSeparator)) {
-		imgPath += string(os.PathSeparator)
-	}
-	return imgPath
-}
 
 // CreateImageMetadata creates new image metadata record in db
 // and returns the id (Type: uuid) of the record

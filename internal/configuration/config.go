@@ -3,6 +3,8 @@ package configuration
 import (
 	"github.com/spf13/viper"
 	"log"
+	"os"
+	"strings"
 )
 
 const (
@@ -47,4 +49,22 @@ func ConfigureApp() {
 
 	configureEnvs()
 	viper.AutomaticEnv()
+}
+
+var imgPath string
+
+// GetImgDirectory returns the image directory path, which ends with os.PathSeparator
+func GetImgDirectory() string {
+	if imgPath != "" {
+		return imgPath
+	}
+
+	imgPath = viper.GetString("img.path")
+	if imgPath == "" {
+		return ""
+	}
+	if !strings.HasSuffix(imgPath, string(os.PathSeparator)) {
+		imgPath += string(os.PathSeparator)
+	}
+	return imgPath
 }
