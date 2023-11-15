@@ -18,9 +18,15 @@ type ImageStorage struct {
 	pool *DBPool
 }
 
-// GetImgDirectory returns the image directory path, which ends on os.PathSeparator
+var imgPath string
+
+// GetImgDirectory returns the image directory path, which ends with os.PathSeparator
 func GetImgDirectory() string {
-	imgPath := viper.GetString("img.path")
+	if imgPath != "" {
+		return imgPath
+	}
+
+	imgPath = viper.GetString("img.path")
 	if imgPath == "" {
 		return ""
 	}
@@ -64,7 +70,7 @@ func (is ImageStorage) NewImgMetadataForOwner(ctx context.Context, owner uuid.UU
 //
 // If something goes wrong the transaction is rolled back and the file is deleted (if it had been opened)
 //
-// TODO: add owner_id checking
+// TODO: add owner_id checking?
 // TODO: what should we do with updating image?
 func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UUID) error {
 	transaction, err := is.pool.Pool().Begin(ctx)
@@ -94,7 +100,7 @@ func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UU
 		return ErrImageIsReadOnly
 	}
 
-	file, err := os.OpenFile(GetImgDirectory()+imgID.String(), os.O_RDWR|os.O_CREATE, 0600)
+	file, err := os.OpenFile(GetImgDirectory()+imgID.String(), os.O_WRONLY|os.O_CREATE, 0200)
 	if err != nil {
 		_ = transaction.Rollback(ctx)
 		return err
@@ -126,3 +132,46 @@ func (is ImageStorage) Store(ctx context.Context, img image.Image, imgID uuid.UU
 
 	return nil
 }
+
+// GetById returns the image in png (TODO: discuss)
+// by given uuid
+// TODO: add owner_id checking?
+func (is ImageStorage) GetById(ctx context.Context, imgID uuid.UUID) (image.Image, error) {
+
+	dbImgId := uuid.NullUUID{UUID: imgID, Valid: true}
+	var isUploaded pgtype.Bool
+	err := is.pool.Pool().QueryRow(ctx, `
+		SELECT uploaded FROM images WHERE id = $1
+		`, dbImgId).Scan(&isUploaded)
+
+	if err != nil {
+		log.Printf("Failed to get uploaded image metadata")
+		return nil, err
+	}
+
+	if !isUploaded.Valid {
+		return nil, ErrInvalidDBValue
+	}
+
+	if !isUploaded.Bool {
+		return nil, ErrImageIsNotUploaded
+	}
+
+	file, err := os.OpenFile(GetImgDirectory()+imgID.String(), os.O_RDONLY, 0400)
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := png.Decode(file)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = file.Close()
+
+	return img, nil
+}
+
+// TODO: GetMetadata
+// TODO: GetDataFromRefsCountView
+// TODO: GetImage

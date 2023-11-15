@@ -12,12 +12,6 @@ import (
 	"party-buddy/internal/db"
 )
 
-func HandlerWithInjectedDBPool(dbpool *db.DBPool, handler func(pool *db.DBPool, w http.ResponseWriter, r *http.Request)) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		handler(dbpool, w, r)
-	}
-}
-
 // ImgTestHandler is used for generating metadata
 // this is DEBUG handler
 //
@@ -41,6 +35,7 @@ func ImgTestHandler(dbpool *db.DBPool, w http.ResponseWriter, _ *http.Request) {
 }
 
 // UploadImgHandler is used for /api/v1/images/{image-id}
+// read image from body and stores it by given id in path
 // this is NOT final variant
 //
 // TODO:
@@ -102,4 +97,46 @@ func UploadImgHandler(dbpool *db.DBPool, w http.ResponseWriter, r *http.Request)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = fmt.Fprint(w, "Success")
+}
+
+// GetImgHandler is used for /api/v1/images/{image-id}
+// return image by given id in path
+// this is NOT final variant
+//
+// TODO:
+//  1. validation
+//  2. json return values
+//  3. proper errors
+//  4. and many other I suppose
+func GetImgHandler(dbpool *db.DBPool, w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	strID, ok := vars["img-id"]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = fmt.Fprint(w, "Image id not provided")
+		return
+	}
+	imgID, err := uuid.Parse(strID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "Bad image id: %v", err.Error())
+		return
+	}
+
+	imgStorage := db.InitImageStorage(dbpool)
+
+	img, err := imgStorage.GetById(context.Background(), imgID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "Failed to get image: %v", err.Error())
+		return
+	}
+
+	err = png.Encode(w, img)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Header().Add("Content-Type", "image/png")
 }
