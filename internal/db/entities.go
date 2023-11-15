@@ -8,20 +8,20 @@ import (
 // ImageEntity represents the metadata for images.
 // Table - images.
 type ImageEntity struct {
-	ID uuid.NullUUID
+	ID uuid.NullUUID `db:"id"`
 
 	// Uploaded default value is false.
 	// If image is uploaded the value true.
-	Uploaded bool
+	Uploaded bool `db:"uploaded"`
 
 	// ReadOnly marks that image is read only.
 	// If ReadOnly == true upload should fail.
-	ReadOnly bool
+	ReadOnly bool `db:"read_only"`
 
-	OwnerID uuid.NullUUID
+	OwnerID uuid.NullUUID `db:"owner_id"`
 
 	// CreatedAt date and time created.
-	CreatedAt time.Time
+	CreatedAt time.Time `db:"created_at"`
 }
 
 // SessionImageRefsEntity tracks images referenced in live sessions.

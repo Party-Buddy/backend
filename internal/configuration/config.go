@@ -1,27 +1,31 @@
 package configuration
 
 import (
-	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
 	"log"
-	"party-buddy/internal/handlers"
+	"os"
+	"strings"
 )
 
 const (
-	appEnvPrefix   = "PARTY_BUDDY"
-	appEnvDbPrefix = "PARTY_BUDDY_DB"
+	appEnvPrefix    = "PARTY_BUDDY"
+	appEnvDbPrefix  = "PARTY_BUDDY_DB"
+	appEnvImgPrefix = "PARTY_BUDDY_IMG"
 )
 
 // configureEnvs maps the config values to proper environment variables
 func configureEnvs() {
 	_ = viper.BindEnv("server.host", appEnvPrefix+"_HOST")
 	_ = viper.BindEnv("server.port", appEnvPrefix+"_PORT")
+
 	_ = viper.BindEnv("db.host", appEnvDbPrefix+"_HOST")
 	_ = viper.BindEnv("db.port", appEnvDbPrefix+"_PORT")
 	_ = viper.BindEnv("db.name", appEnvDbPrefix+"_NAME")
 	_ = viper.BindEnv("db.driver", appEnvDbPrefix+"_DRIVER")
 	_ = viper.BindEnv("db.user", appEnvDbPrefix+"_USER")
 	_ = viper.BindEnv("db.password", appEnvDbPrefix+"_PASSWORD")
+
+	_ = viper.BindEnv("img.path", appEnvImgPrefix+"_PATH")
 }
 
 // ConfigureApp try to get configuration from ./configs/conf.[ext] file.
@@ -47,9 +51,20 @@ func ConfigureApp() {
 	viper.AutomaticEnv()
 }
 
-// ConfigureMux configures the handlers for HTTP routes and methods
-func ConfigureMux() *mux.Router {
-	r := mux.NewRouter()
-	r.HandleFunc("/", handlers.IndexHandler).Methods("GET")
-	return r
+var imgPath string
+
+// GetImgDirectory returns the image directory path, which ends with os.PathSeparator
+func GetImgDirectory() string {
+	if imgPath != "" {
+		return imgPath
+	}
+
+	imgPath = viper.GetString("img.path")
+	if imgPath == "" {
+		return ""
+	}
+	if !strings.HasSuffix(imgPath, string(os.PathSeparator)) {
+		imgPath += string(os.PathSeparator)
+	}
+	return imgPath
 }

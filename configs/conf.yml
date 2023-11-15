@@ -7,3 +7,5 @@ db:
   port: 5432
   name: party-buddy
   user: postgres
+img:
+  path: data/images
