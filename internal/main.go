@@ -14,7 +14,7 @@ import (
 
 // isImagePathAccessible tries to create a file by provided image path
 func isImagePathAccessible() error {
-	imgDir := db.GetImgDirectory()
+	imgDir := configuration.GetImgDirectory()
 	if _, err := os.Stat(imgDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(imgDir, 0700); err != nil {
 			return err
