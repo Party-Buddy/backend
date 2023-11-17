@@ -20,7 +20,7 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 type OurNotFoundHandler struct{}
 
-func (o OurNotFoundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (o OurNotFoundHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	encoder := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
@@ -30,7 +30,7 @@ func (o OurNotFoundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type OurMethodNotAllowedHandler struct{}
 
-func (o OurMethodNotAllowedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (o OurMethodNotAllowedHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	encoder := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusMethodNotAllowed)

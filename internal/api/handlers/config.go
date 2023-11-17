@@ -12,6 +12,7 @@ func ConfigureMux(pool *db.DBPool) *mux.Router {
 	r.NotFoundHandler = OurNotFoundHandler{}
 	r.MethodNotAllowedHandler = OurMethodNotAllowedHandler{}
 
+	// TODO: delete before production
 	r.HandleFunc("/", IndexHandler).Methods(http.MethodGet)
 
 	// TODO: use auth middleware
