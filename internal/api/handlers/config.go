@@ -9,7 +9,12 @@ import (
 // ConfigureMux configures the handlers for HTTP routes and methods
 func ConfigureMux(pool *db.DBPool) *mux.Router {
 	r := mux.NewRouter()
+	r.NotFoundHandler = OurNotFoundHandler{}
+	r.MethodNotAllowedHandler = OurMethodNotAllowedHandler{}
+
 	r.HandleFunc("/", IndexHandler).Methods(http.MethodGet)
 
+	//r.PathPrefix("/api/v1/")
+	r.HandleFunc("/api/v1/images/{img-id}", GetImageHandler(pool)).Methods(http.MethodGet)
 	return r
 }

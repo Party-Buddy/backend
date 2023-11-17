@@ -5,11 +5,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"image"
+	"image/jpeg"
+	"os"
+	"party-buddy/internal/configuration"
 )
 
 // CreateImageMetadata creates new image metadata record in db
 // and returns the id (Type: uuid) of the record
-func CreateImageMetadata(conn *pgx.Conn, ctx context.Context, owner uuid.UUID) (uuid.NullUUID, error) {
+func CreateImageMetadata(conn *pgxpool.Conn, ctx context.Context, owner uuid.UUID) (uuid.NullUUID, error) {
 	var retImgUUID uuid.NullUUID
 
 	err := conn.QueryRow(ctx, `
@@ -29,7 +34,7 @@ func CreateImageMetadata(conn *pgx.Conn, ctx context.Context, owner uuid.UUID) (
 
 // GetImageMetadataByIDs returns array of image metadata by each id in imgIDs
 // If you need a many image metadata in the same time use this function instead of cycle with GetImageMetadataByID
-func GetImageMetadataByIDs(conn *pgx.Conn, ctx context.Context, imgIDs []uuid.NullUUID) ([]ImageEntity, error) {
+func GetImageMetadataByIDs(conn *pgxpool.Conn, ctx context.Context, imgIDs []uuid.NullUUID) ([]ImageEntity, error) {
 	rows, err := conn.Query(ctx, `
 		SELECT * FROM images WHERE id = ANY ($1)
 		`, imgIDs)
@@ -45,7 +50,7 @@ func GetImageMetadataByIDs(conn *pgx.Conn, ctx context.Context, imgIDs []uuid.Nu
 }
 
 // GetImageMetadataByID returns image metadata by given id
-func GetImageMetadataByID(conn *pgx.Conn, ctx context.Context, imgID uuid.NullUUID) (ImageEntity, error) {
+func GetImageMetadataByID(conn *pgxpool.Conn, ctx context.Context, imgID uuid.NullUUID) (ImageEntity, error) {
 	rows, err := conn.Query(ctx, `
 		SELECT * FROM images WHERE id = $1
 		`, imgID)
@@ -64,15 +69,31 @@ func GetImageMetadataByID(conn *pgx.Conn, ctx context.Context, imgID uuid.NullUU
 }
 
 // SetImageUploaded sets for image with id imgID field uploaded to value
-func SetImageUploaded(conn *pgx.Conn, ctx context.Context, imgID uuid.NullUUID, value bool) error {
+func SetImageUploaded(conn *pgxpool.Conn, ctx context.Context, imgID uuid.NullUUID, value bool) error {
 	return conn.QueryRow(ctx, `
 		UPDATE images SET uploaded = $2 WHERE id = $1
 		`, imgID, pgtype.Bool{Bool: value, Valid: true}).Scan()
 }
 
 // SetImageReadOnly sets for image with id imgID field read_only to value
-func SetImageReadOnly(conn *pgx.Conn, ctx context.Context, imgID uuid.NullUUID, value bool) error {
+func SetImageReadOnly(conn *pgxpool.Conn, ctx context.Context, imgID uuid.NullUUID, value bool) error {
 	return conn.QueryRow(ctx, `
 		UPDATE images SET read_only = $2 WHERE id = $1
 		`, imgID, pgtype.Bool{Bool: value, Valid: true}).Scan()
+}
+
+func GetImageFromFS(imgID uuid.NullUUID) (image.Image, error) {
+	imgDir := configuration.GetImgDirectory()
+	imgPath := imgDir + imgID.UUID.String()
+
+	file, err := os.Open(imgPath)
+	if err != nil {
+		return nil, err
+	}
+
+	img, err := jpeg.Decode(file)
+	if err != nil {
+		return nil, err
+	}
+	return img, nil
 }
