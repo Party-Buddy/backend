@@ -14,7 +14,7 @@ func ConfigureMux(pool *db.DBPool) *mux.Router {
 
 	r.HandleFunc("/", IndexHandler).Methods(http.MethodGet)
 
-	//r.PathPrefix("/api/v1/")
+	// TODO: use auth middleware
 	r.HandleFunc("/api/v1/images/{img-id}", GetImageHandler(pool)).Methods(http.MethodGet)
 	return r
 }

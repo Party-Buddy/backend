@@ -14,15 +14,14 @@ import (
 
 func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//encoder := json.NewEncoder(w)
+		encoder := json.NewEncoder(w)
 		vars := mux.Vars(r)
 		val, ok := vars["img-id"]
 		if !ok {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "")
-			bytes, _ := json.Marshal(dto)
-			_, _ = w.Write(bytes)
+			_ = encoder.Encode(dto)
 			return
 		}
 		imgID, err := uuid.Parse(val)
@@ -30,8 +29,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "")
-			bytes, _ := json.Marshal(dto)
-			_, _ = w.Write(bytes)
+			_ = encoder.Encode(dto)
 			return
 		}
 
@@ -47,8 +45,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "")
-			bytes, _ := json.Marshal(dto)
-			_, _ = w.Write(bytes)
+			_ = encoder.Encode(dto)
 			return
 		}
 
@@ -56,8 +53,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "")
-			bytes, _ := json.Marshal(dto)
-			_, _ = w.Write(bytes)
+			_ = encoder.Encode(dto)
 			return
 		}
 
@@ -66,8 +62,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "")
-			bytes, _ := json.Marshal(dto)
-			_, _ = w.Write(bytes)
+			_ = encoder.Encode(dto)
 			return
 		}
 
