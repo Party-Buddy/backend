@@ -82,9 +82,9 @@ func SetImageReadOnly(conn *pgxpool.Conn, ctx context.Context, imgID uuid.NullUU
 		`, imgID, pgtype.Bool{Bool: value, Valid: true}).Scan()
 }
 
-func GetImageFromFS(imgID uuid.NullUUID) (image.Image, error) {
+func GetImageFromFS(imgID uuid.UUID) (image.Image, error) {
 	imgDir := configuration.GetImgDirectory()
-	imgPath := imgDir + imgID.UUID.String()
+	imgPath := imgDir + imgID.String()
 
 	file, err := os.Open(imgPath)
 	if err != nil {

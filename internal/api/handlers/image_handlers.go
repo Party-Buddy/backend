@@ -57,7 +57,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		img, err := db.GetImageFromFS(imgMetadata.ID)
+		img, err := db.GetImageFromFS(imgMetadata.ID.UUID)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
