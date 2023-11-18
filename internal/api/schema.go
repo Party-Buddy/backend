@@ -46,7 +46,9 @@ var (
 
 // GeneralErrorKind codes
 var (
-	ErrNotFound ErrorKind = "not-found"
+	ErrNotFound         ErrorKind = "not-found"
+	ErrMethodNotAllowed ErrorKind = "method-not-allowed"
+	ErrInternal         ErrorKind = "internal"
 )
 
 type Error struct {

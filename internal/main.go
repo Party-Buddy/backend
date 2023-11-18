@@ -7,9 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"party-buddy/internal/api/handlers"
 	"party-buddy/internal/configuration"
 	"party-buddy/internal/db"
-	"party-buddy/internal/handlers"
 )
 
 // isImagePathAccessible tries to create a file by provided image path
