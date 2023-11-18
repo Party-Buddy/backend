@@ -81,6 +81,22 @@ func (e *Error) String() string {
 	return e.Message
 }
 
+// How to add a new response (output, server-to-client) body struct:
+// 1. Create a new (exported) type of the desired structure.
+//    All fields should be exported.
+// 2. Set a JSON tag for each field.
+// 3. Use [json.Marshal] (or its encoder) to convert a structure to JSON.
+//
+// How to add a new request (input, client-to-server) body struct:
+// 1. Create a new (exported) type of the desired structure.
+//    All fields should be exported for consistency.
+//    Use pointer types for fields (e.g., `*string`, not `string`).
+// 2. Set a JSON tag for each field.
+// 3. Implement [validate.Validator].
+//    Make sure to check each required field for nil ([validate.FieldValue] may come in handy for this):
+//    otherwise you won't know if this field was present in a request.
+// 4. Use [Parse] to deserialize JSON into a target structure.
+
 // Parse parses JSON-encoded data into target and runs validation.
 // Returns a formatted [Error] on parsing failure.
 func Parse(ctx context.Context, target validate.Validator, data []byte) error {

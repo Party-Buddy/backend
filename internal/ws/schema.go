@@ -13,6 +13,9 @@ import (
 	"github.com/cohesivestack/valgo"
 )
 
+// See internal/api/schema.go for information on serialization/deserialization.
+// Use [ParseMessage] for message deserialization as well as [ParseErrorToMessageError] for error handling.
+
 type MessageKind string
 
 var (
