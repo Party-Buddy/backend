@@ -24,16 +24,16 @@ func (o OurNotFoundHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	encoder := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
-	dto := api.Errorf(api.ErrNotFound, "")
+	dto := api.Errorf(api.ErrNotFound, "page was not found")
 	_ = encoder.Encode(dto)
 }
 
 type OurMethodNotAllowedHandler struct{}
 
-func (o OurMethodNotAllowedHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (o OurMethodNotAllowedHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encoder := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusMethodNotAllowed)
-	dto := api.Errorf("method-not-allowed", "")
+	dto := api.Errorf(api.ErrMethodNotAllowed, "method not allowed for endpoint: %v", r.URL.Path)
 	_ = encoder.Encode(dto)
 }
