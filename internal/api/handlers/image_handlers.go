@@ -20,7 +20,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 		if !ok {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			dto := api.Errorf(api.ErrNotFound, "")
+			dto := api.Errorf(api.ErrNotFound, "img-id not provided")
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -28,7 +28,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			dto := api.Errorf(api.ErrNotFound, "")
+			dto := api.Errorf(api.ErrNotFound, "invalid url")
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -44,7 +44,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			dto := api.Errorf(api.ErrNotFound, "")
+			dto := api.Errorf(api.ErrNotFound, "no record in db")
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -52,7 +52,7 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 		if !imgMetadata.Uploaded {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
-			dto := api.Errorf(api.ErrNotFound, "")
+			dto := api.Errorf(api.ErrNotFound, "image is not uploaded")
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -60,8 +60,8 @@ func GetImageHandler(dbpool *db.DBPool) func(w http.ResponseWriter, r *http.Requ
 		img, err := db.GetImageFromFS(imgMetadata.ID.UUID)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			dto := api.Errorf(api.ErrNotFound, "")
+			w.WriteHeader(http.StatusInternalServerError)
+			dto := api.Errorf(api.ErrInternal, "image not found in storage")
 			_ = encoder.Encode(dto)
 			return
 		}
