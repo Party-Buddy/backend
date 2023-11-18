@@ -315,6 +315,15 @@ func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 
 // ParseErrorToMessageError converts an error returned by [ParseMessage] to an [Error] message.
 func ParseErrorToMessageError(err error) error {
+	var typeError *json.UnmarshalTypeError
+	if errors.As(err, &typeError) {
+		return &Error{
+			RefId: nil,
+			Code: ErrMalformedMsg,
+			Message: fmt.Sprintf("in field `%s`: %s has an illegal type", typeError.Field, typeError.Value),
+		}
+	}
+
 	var decodeError *DecodeError
 	if errors.As(err, &decodeError) {
 		return &Error{

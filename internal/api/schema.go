@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"party-buddy/internal/validate"
 
@@ -86,6 +87,16 @@ func Parse(ctx context.Context, target validate.Validator, data []byte) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
+		var typeError *json.UnmarshalTypeError
+		if errors.As(err, &typeError) {
+			return Errorf(
+				ErrMalformedRequest,
+				"in field `%s`: %s has an illegal type",
+				typeError.Field,
+				typeError.Value,
+			)
+		}
+
 		return Errorf(ErrMalformedRequest, "request body is not valid JSON: %s", err)
 	}
 	if decoder.InputOffset() < int64(len(data)) {
