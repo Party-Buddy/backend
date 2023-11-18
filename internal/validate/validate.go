@@ -65,3 +65,17 @@ func (v *ValidatorField) Not() *ValidatorField {
 func FieldValue[T any](value *T, nameAndTitle ...string) *ValidatorField {
 	return &ValidatorField{context: valgo.NewContext(value, nameAndTitle...)}
 }
+
+func ExtractValgoErrorFields(err *valgo.Error) (fieldName string, msg string, ok bool) {
+	if err == nil {
+		return
+	}
+
+	for _, v := range err.Errors() {
+		if len(v.Messages()) > 0 {
+			return v.Name(), v.Messages()[0], true
+		}
+	}
+
+	return
+}

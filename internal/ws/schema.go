@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/cohesivestack/valgo"
 	"party-buddy/internal/validate"
+	"regexp"
 	"time"
+
+	"github.com/cohesivestack/valgo"
 )
 
 type MessageKind string
@@ -126,13 +129,16 @@ type MessageError struct {
 type MessageJoin struct {
 	BaseMessage
 
-	// TODO
+	Nickname *string `json:"nickname"`
 }
+
+var nicknameRegex *regexp.Regexp = regexp.MustCompile("^[a-zA-Zа-яА-Я._ 0-9]{1,20}$")
 
 func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
-	// TODO
-	return f.New()
+
+	return f.Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
+		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid"))
 }
 
 type MessageReady struct {
@@ -203,7 +209,16 @@ func (*MessageTaskAnswer) isRecvMessage() {}
 func (*MessagePollChoose) isRecvMessage() {}
 
 type UnknownMessageError struct {
-	kind MessageKind
+	refId MessageId
+	kind  MessageKind
+}
+
+func (e *UnknownMessageError) RefId() MessageId {
+	return e.refId
+}
+
+func (e *UnknownMessageError) Kind() MessageKind {
+	return e.kind
 }
 
 func (e *UnknownMessageError) Error() string {
@@ -222,12 +237,33 @@ func (e *DecodeError) Unwrap() error {
 	return e.cause
 }
 
+type ValidationError struct {
+	refId MessageId
+	cause *valgo.Error
+}
+
+func (e *ValidationError) RefId() MessageId {
+	return e.refId
+}
+
+func (e *ValidationError) Error() string {
+	return fmt.Sprintf("validation failed: %s", e.cause)
+}
+
+func (e *ValidationError) ValgoError() *valgo.Error {
+	return e.cause
+}
+
+func (e *ValidationError) Unwrap() error {
+	return e.cause
+}
+
 // ParseMessage decodes and validates a protocol message.
 //
 // If the supplied data is invalid, returns one of the following errors:
 // - [DecodeError] if some an error has occurred during decoding
 // - [UnknownMessageError] if the message data specifies an unknown message kind
-// - [valgo.Error] if validation fails
+// - [ValidationError] if validation fails
 // - or possibly some other error type.
 func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 	var base BaseMessage
@@ -235,7 +271,10 @@ func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 		return nil, err
 	}
 	if val := base.Validate(ctx); !val.Valid() {
-		return nil, val.Error()
+		return nil, &ValidationError{
+			refId: *base.MsgId,
+			cause: val.Error().(*valgo.Error),
+		}
 	}
 
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -265,8 +304,54 @@ func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 	}
 
 	if val := msg.Validate(ctx); !val.Valid() {
-		return nil, val.Error()
+		return nil, &ValidationError{
+			refId: *base.MsgId,
+			cause: val.Error().(*valgo.Error),
+		}
 	}
 
 	return msg, nil
+}
+
+// ParseErrorToMessageError converts an error returned by [ParseMessage] to an [Error] message.
+func ParseErrorToMessageError(err error) error {
+	var decodeError *DecodeError
+	if errors.As(err, &decodeError) {
+		return &Error{
+			RefId:   nil,
+			Code:    ErrMalformedMsg,
+			Message: fmt.Sprintf("message is not valid JSON: %s", decodeError),
+		}
+	}
+
+	var unknownMessageError *UnknownMessageError
+	if errors.As(err, &unknownMessageError) {
+		refId := unknownMessageError.RefId()
+		return &Error{
+			RefId:   &refId,
+			Code:    ErrProtoViolation,
+			Message: fmt.Sprintf("unacceptable message kind: `%s`", unknownMessageError.Kind()),
+		}
+	}
+
+	var validationError *ValidationError
+	if errors.As(err, &validationError) {
+		refId := validationError.RefId()
+		message := "malformed message"
+		if fieldName, msg, ok := validate.ExtractValgoErrorFields(validationError.ValgoError()); ok {
+			message = fmt.Sprintf("in field `%s`: %s", fieldName, msg)
+		}
+
+		return &Error{
+			RefId:   &refId,
+			Code:    ErrMalformedMsg,
+			Message: message,
+		}
+	}
+
+	return &Error{
+		RefId:   nil,
+		Code:    ErrInternal,
+		Message: "internal failure while decoding message",
+	}
 }

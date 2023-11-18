@@ -1,6 +1,14 @@
 package api
 
-import "fmt"
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"party-buddy/internal/validate"
+
+	"github.com/cohesivestack/valgo"
+)
 
 type ErrorKind string
 
@@ -49,6 +57,7 @@ var (
 	ErrNotFound         ErrorKind = "not-found"
 	ErrMethodNotAllowed ErrorKind = "method-not-allowed"
 	ErrInternal         ErrorKind = "internal"
+	ErrMalformedRequest ErrorKind = "malformed-request"
 )
 
 type Error struct {
@@ -69,4 +78,27 @@ func (e *Error) Error() string {
 
 func (e *Error) String() string {
 	return e.Message
+}
+
+// Parse parses JSON-encoded data into target and runs validation.
+// Returns a formatted [Error] on parsing failure.
+func Parse(ctx context.Context, target validate.Validator, data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return Errorf(ErrMalformedRequest, "request body is not valid JSON: %s", err)
+	}
+	if decoder.InputOffset() < int64(len(data)) {
+		return Errorf(ErrMalformedRequest, "request body is not valid JSON: trailing junk")
+	}
+
+	if val := target.Validate(ctx); !val.Valid() {
+		if fieldName, msg, ok := validate.ExtractValgoErrorFields(val.Error().(*valgo.Error)); ok {
+			return Errorf(ErrMalformedRequest, "in field `%s`: %s", fieldName, msg)
+		} else {
+			return Errorf(ErrMalformedRequest, "malformed request body")
+		}
+	}
+
+	return nil
 }
