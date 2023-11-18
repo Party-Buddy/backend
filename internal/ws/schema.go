@@ -1,9 +1,16 @@
 package ws
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"party-buddy/internal/validate"
+	"regexp"
 	"time"
+
+	"github.com/cohesivestack/valgo"
 )
 
 type MessageKind string
@@ -45,9 +52,24 @@ func (t Time) MarshalJSON() ([]byte, error) {
 }
 
 type BaseMessage struct {
-	MsgId MessageId   `json:"msg-id"`
-	Kind  MessageKind `json:"kind"`
-	Time  Time        `json:"time"`
+	MsgId *MessageId   `json:"msg-id"`
+	Kind  *MessageKind `json:"kind"`
+	Time  *Time        `json:"time"`
+}
+
+func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+
+	return f.
+		Is(validate.FieldValue(m.MsgId, "msg-id", "msg-id").Set()).
+		Is(validate.FieldValue(m.Kind, "kind", "kind").Set()).
+		Is(validate.FieldValue(m.Time, "time", "time").Set())
+}
+
+// A RecvMessage is implemented by protocol messages that can be received from a client.
+type RecvMessage interface {
+	validate.Validator
+	isRecvMessage()
 }
 
 type ErrorKind string
@@ -102,4 +124,243 @@ func (e *Error) String() string {
 type MessageError struct {
 	BaseMessage
 	Error
+}
+
+type MessageJoin struct {
+	BaseMessage
+
+	Nickname *string `json:"nickname"`
+}
+
+var nicknameRegex *regexp.Regexp = regexp.MustCompile("^[a-zA-Zа-яА-Я._ 0-9]{1,20}$")
+
+func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+
+	return f.Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
+		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid"))
+}
+
+type MessageReady struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageReady) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	// TODO
+	return f.New()
+}
+
+type MessageKick struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageKick) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	// TODO
+	return f.New()
+}
+
+type MessageLeave struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageLeave) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	// TODO
+	return f.New()
+}
+
+type MessageTaskAnswer struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessageTaskAnswer) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	// TODO
+	return f.New()
+}
+
+type MessagePollChoose struct {
+	BaseMessage
+
+	// TODO
+}
+
+func (m *MessagePollChoose) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	// TODO
+	return f.New()
+}
+
+func (*MessageJoin) isRecvMessage()       {}
+func (*MessageReady) isRecvMessage()      {}
+func (*MessageKick) isRecvMessage()       {}
+func (*MessageLeave) isRecvMessage()      {}
+func (*MessageTaskAnswer) isRecvMessage() {}
+func (*MessagePollChoose) isRecvMessage() {}
+
+type UnknownMessageError struct {
+	refId MessageId
+	kind  MessageKind
+}
+
+func (e *UnknownMessageError) RefId() MessageId {
+	return e.refId
+}
+
+func (e *UnknownMessageError) Kind() MessageKind {
+	return e.kind
+}
+
+func (e *UnknownMessageError) Error() string {
+	return fmt.Sprintf("unknown message kind `%v`", e.kind)
+}
+
+type DecodeError struct {
+	cause error
+}
+
+func (e *DecodeError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *DecodeError) Unwrap() error {
+	return e.cause
+}
+
+type ValidationError struct {
+	refId MessageId
+	cause *valgo.Error
+}
+
+func (e *ValidationError) RefId() MessageId {
+	return e.refId
+}
+
+func (e *ValidationError) Error() string {
+	return fmt.Sprintf("validation failed: %s", e.cause)
+}
+
+func (e *ValidationError) ValgoError() *valgo.Error {
+	return e.cause
+}
+
+func (e *ValidationError) Unwrap() error {
+	return e.cause
+}
+
+// ParseMessage decodes and validates a protocol message.
+//
+// If the supplied data is invalid, returns one of the following errors:
+// - [DecodeError] if some an error has occurred during decoding
+// - [UnknownMessageError] if the message data specifies an unknown message kind
+// - [ValidationError] if validation fails
+// - or possibly some other error type.
+func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
+	var base BaseMessage
+	if err := json.Unmarshal(data, &base); err != nil {
+		return nil, err
+	}
+	if val := base.Validate(ctx); !val.Valid() {
+		return nil, &ValidationError{
+			refId: *base.MsgId,
+			cause: val.Error().(*valgo.Error),
+		}
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+
+	var msg RecvMessage
+
+	switch *base.Kind {
+	case MsgKindJoin:
+		msg = &MessageJoin{}
+	case MsgKindReady:
+		msg = &MessageReady{}
+	case MsgKindKick:
+		msg = &MessageKick{}
+	case MsgKindLeave:
+		msg = &MessageLeave{}
+	case MsgKindTaskAnswer:
+		msg = &MessageTaskAnswer{}
+	case MsgKindPollChoose:
+		msg = &MessagePollChoose{}
+	default:
+		return nil, &UnknownMessageError{kind: *base.Kind}
+	}
+
+	if err := decoder.Decode(msg); err != nil {
+		return nil, &DecodeError{cause: err}
+	}
+
+	if val := msg.Validate(ctx); !val.Valid() {
+		return nil, &ValidationError{
+			refId: *base.MsgId,
+			cause: val.Error().(*valgo.Error),
+		}
+	}
+
+	return msg, nil
+}
+
+// ParseErrorToMessageError converts an error returned by [ParseMessage] to an [Error] message.
+func ParseErrorToMessageError(err error) error {
+	var typeError *json.UnmarshalTypeError
+	if errors.As(err, &typeError) {
+		return &Error{
+			RefId: nil,
+			Code: ErrMalformedMsg,
+			Message: fmt.Sprintf("in field `%s`: %s has an illegal type", typeError.Field, typeError.Value),
+		}
+	}
+
+	var decodeError *DecodeError
+	if errors.As(err, &decodeError) {
+		return &Error{
+			RefId:   nil,
+			Code:    ErrMalformedMsg,
+			Message: fmt.Sprintf("message is not valid JSON: %s", decodeError),
+		}
+	}
+
+	var unknownMessageError *UnknownMessageError
+	if errors.As(err, &unknownMessageError) {
+		refId := unknownMessageError.RefId()
+		return &Error{
+			RefId:   &refId,
+			Code:    ErrProtoViolation,
+			Message: fmt.Sprintf("unacceptable message kind: `%s`", unknownMessageError.Kind()),
+		}
+	}
+
+	var validationError *ValidationError
+	if errors.As(err, &validationError) {
+		refId := validationError.RefId()
+		message := "malformed message"
+		if fieldName, msg, ok := validate.ExtractValgoErrorFields(validationError.ValgoError()); ok {
+			message = fmt.Sprintf("in field `%s`: %s", fieldName, msg)
+		}
+
+		return &Error{
+			RefId:   &refId,
+			Code:    ErrMalformedMsg,
+			Message: message,
+		}
+	}
+
+	return &Error{
+		RefId:   nil,
+		Code:    ErrInternal,
+		Message: "internal failure while decoding message",
+	}
 }
