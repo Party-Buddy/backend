@@ -5,12 +5,16 @@ import "time"
 // Tasks
 
 type Task interface {
+	Name() string
+	Description() string
+	ImageId() ImageId
 	isTask() // an unexported marker method to indicate a type is in fact a task
 }
 
 type BaseTask struct {
-	Name         string
-	Description  string
+	Name        string
+	Description string
+	ImageId     ImageId
 	TaskDuration time.Duration
 }
 
@@ -40,6 +44,14 @@ func (PhotoTask) isTask()       {}
 func (TextTask) isTask()        {}
 func (CheckedTextTask) isTask() {}
 func (ChoiceTask) isTask()      {}
+
+// type assertions
+var (
+	_ Task = PhotoTask{}
+	_ Task = TextTask{}
+	_ Task = CheckedTextTask{}
+	_ Task = ChoiceTask{}
+)
 
 // Task answers
 

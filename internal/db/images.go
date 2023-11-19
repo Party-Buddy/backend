@@ -18,7 +18,7 @@ func CreateImageMetadata(conn *pgxpool.Conn, ctx context.Context, owner uuid.UUI
 	var retImgUUID uuid.NullUUID
 
 	err := conn.QueryRow(ctx, `
-		INSERT INTO images (id, uploaded, read_only, owner_id, created_at) VALUES 
+		INSERT INTO images (id, uploaded, read_only, owner_id, created_at) VALUES
 			(DEFAULT, false, false, $1, DEFAULT) RETURNING id
 		`, uuid.NullUUID{UUID: owner, Valid: true}).Scan(&retImgUUID)
 

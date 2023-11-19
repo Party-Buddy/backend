@@ -12,7 +12,7 @@ import (
 
 type (
 	// An ImageId identifies a particular image stored on this server.
-	ImageId string
+	ImageId uuid.NullUUID
 
 	// A SessionId is a permanent session identifier, valid for the lifetime of the session.
 	SessionId uuid.UUID
@@ -30,6 +30,26 @@ type (
 	// When a client joins a session, they are assigned a [PlayerId], which, unlike the ClientId, is public.
 	ClientId uuid.UUID
 )
+
+func (id ImageId) String() string {
+	if id.Valid {
+		return id.UUID.String()
+	} else {
+		return "<null>"
+	}
+}
+
+func (sid SessionId) UUID() uuid.UUID {
+	return uuid.UUID(sid)
+}
+
+func (id PlayerId) UUID() uuid.UUID {
+	return uuid.UUID(id)
+}
+
+func (id ClientId) UUID() uuid.UUID {
+	return uuid.UUID(id)
+}
 
 func NewSessionId() SessionId {
 	uuid, err := uuid.NewRandom()
