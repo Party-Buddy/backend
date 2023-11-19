@@ -110,7 +110,7 @@ type session struct {
 	playersMax    int
 	clients       map[ClientId]PlayerId
 	bannedClients map[ClientId]struct{}
-	state         state
+	state         State
 }
 
 type Game struct {
@@ -121,6 +121,9 @@ type Game struct {
 	Tasks       []Task
 }
 
+// TODO
+type TxChan chan<- any
+
 type Player struct {
 	Id       PlayerId
 	ClientId ClientId
@@ -129,6 +132,7 @@ type Player struct {
 	// TODO:
 	// // Connection holds a channel that allows sending events to the client.
 	// Connection chan<- event.ServerEvent
+	Tx TxChan
 }
 
 type PollOption struct {

@@ -78,10 +78,10 @@ func (s *UnsafeStorage) NewSession(
 		},
 		playersMax: playersMax,
 		clients:    map[ClientId]PlayerId{owner: ownerId},
-		state: &awaitingPlayersState{
-			inviteCode:   code,
-			requireReady: requireReady,
-			owner:        ownerId,
+		state: &AwaitingPlayersState{
+			InviteCode:   code,
+			RequireReady: requireReady,
+			Owner:        ownerId,
 		},
 	}
 	s.inviteCodes[code] = sid
@@ -124,17 +124,88 @@ func (s *UnsafeStorage) PlayerById(sid SessionId, playerId PlayerId) (player Pla
 	return
 }
 
+// ForEachPlayer calls f for each player in a session.
+func (s *UnsafeStorage) ForEachPlayer(sid SessionId, f func(Player)) {
+	session := s.sessions[sid]
+	if session == nil {
+		return
+	}
+	for _, player := range session.players {
+		f(player)
+	}
+}
+
+// Players returns all players in a session.
+func (s *UnsafeStorage) Players(sid SessionId) (players []Player) {
+	s.ForEachPlayer(sid, func(player Player) {
+		players = append(players, player)
+	})
+	return
+}
+
+// PlayerTxs returns the Tx fields of each player in a session.
+func (s *UnsafeStorage) PlayerTxs(sid SessionId) (txs []TxChan) {
+	s.ForEachPlayer(sid, func(player Player) {
+		txs = append(txs, player.Tx)
+	})
+	return
+}
+
 // PlayerCount returns the number of players currently in the session.
 func (s *UnsafeStorage) PlayerCount(sid SessionId) int {
-	if session, ok := s.sessions[sid]; ok {
+	if session := s.sessions[sid]; session != nil {
 		return len(session.players)
 	}
 
 	return 0
 }
 
-// IsClientBanned checks if a client with the given id is banned from a session.
-func (s *UnsafeStorage) IsClientBanned(sid SessionId, clientId ClientId) bool {
+// SessionFull returns true iff the number of players in a session reached the session's maximum.
+func (s *UnsafeStorage) SessionFull(sid SessionId) bool {
+	if session := s.sessions[sid]; session != nil {
+		return len(session.players) >= session.playersMax
+	}
+	return false
+}
+
+// SessionGame returns the game played in a session.
+//
+// If the session does not exist, sets ok to false.
+func (s *UnsafeStorage) SessionGame(sid SessionId) (game Game, ok bool) {
+	if session := s.sessions[sid]; session != nil {
+		return session.game, true
+	}
+	return
+}
+
+// SessionState returns a session's current state.
+func (s *UnsafeStorage) SessionState(sid SessionId) State {
+	if session := s.sessions[sid]; session != nil {
+		return session.state
+	}
+	return nil
+}
+
+// HasPlayerNickname returns true iff there's a player with the given nickname in a session.
+func (s *UnsafeStorage) HasPlayerNickname(sid SessionId, nickname string) bool {
+	session := s.sessions[sid]
+	if session == nil {
+		return false
+	}
+
+	// O(n) in the number of players
+	// this is fine: n <= MaxPlayers, which is reasonably small
+	for playerId := range session.players {
+		if session.players[playerId].Nickname == nickname {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ClientBanned checks if a client with the given id is banned from a session.
+func (s *UnsafeStorage) ClientBanned(sid SessionId, clientId ClientId) bool {
 	session := s.sessions[sid]
 	if session == nil {
 		return false
@@ -153,8 +224,13 @@ func (s *UnsafeStorage) banClient(sid SessionId, clientId ClientId) {
 	session.bannedClients[clientId] = struct{}{}
 }
 
-// addPlayer adds a client to a session as another player.
-func (s *UnsafeStorage) addPlayer(sid SessionId, clientId ClientId, nickname string) (player Player, err error) {
+// AddPlayer adds a client to a session as another player.
+func (s *UnsafeStorage) AddPlayer(
+	sid SessionId,
+	clientId ClientId,
+	nickname string,
+	tx chan<- any,
+) (player Player, err error) {
 	session, err := s.sessionById(sid)
 	if err != nil {
 		return
@@ -193,4 +269,13 @@ func (s *UnsafeStorage) removePlayer(sid SessionId, clientId ClientId) (PlayerId
 	delete(session.clients, clientId)
 
 	return playerId, true
+}
+
+// AwaitingPlayers returns true iff the current session state is awaitingPlayersState.
+func (s *UnsafeStorage) AwaitingPlayers(sid SessionId) bool {
+	if session := s.sessions[sid]; session != nil {
+		_, ok := session.state.(*AwaitingPlayersState)
+		return ok
+	}
+	return false
 }
