@@ -12,6 +12,7 @@ func CreateSessionImageRef(tx pgx.Tx, ctx context.Context, sid uuid.UUID, imageI
 	_, err := tx.Exec(ctx, `
 		INSERT INTO session_image_refs (image_id, session_id)
 			VALUES ($1, $2)
+			ON CONFLICT DO NOTHING
 		`,
 		uuid.NullUUID{UUID: imageId, Valid: true},
 		uuid.NullUUID{UUID: sid, Valid: true},
