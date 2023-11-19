@@ -46,10 +46,13 @@ func (s *UnsafeStorage) sessionById(sid SessionId) (*session, error) {
 }
 
 // NewSession creates a new session.
+//
 // The state is set to awaitingPlayersState, and the owner is added as the first player in the lobby.
 // Returns the newly created session's ID, its invite code, as well as the [PlayerId] of the owner.
+//
+// The given game is cloned by NewSession.
 func (s *UnsafeStorage) NewSession(
-	game Game,
+	game *Game,
 	owner ClientId,
 	ownerNickname string,
 	requireReady bool,
@@ -65,7 +68,7 @@ func (s *UnsafeStorage) NewSession(
 
 	s.sessions[sid] = &session{
 		id:   sid,
-		game: game,
+		game: *game,
 		players: map[PlayerId]Player{
 			ownerId: {
 				Id:       ownerId,
@@ -84,6 +87,11 @@ func (s *UnsafeStorage) NewSession(
 	s.inviteCodes[code] = sid
 
 	return
+}
+
+// RemoveSession removes a session from the storage.
+func (s *UnsafeStorage) RemoveSession(sid SessionId) {
+	// TODO
 }
 
 // PlayerByClientId returns a player in a session with the given clientId.

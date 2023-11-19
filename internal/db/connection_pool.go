@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,4 +27,18 @@ func (d *DBPool) Dispose() {
 
 func (d *DBPool) Pool() *pgxpool.Pool {
 	return d.pool
+}
+
+// AcquireTx acquires a connection from the pool, begins a new transaction, and provides it to f.
+//
+// The transaction is automatically rolled back after the function returns unless it commits the transaction.
+func (d *DBPool) AcquireTx(ctx context.Context, f func(tx pgx.Tx) error) error {
+	tx, err := d.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback(ctx)
+
+	return f(tx)
 }
