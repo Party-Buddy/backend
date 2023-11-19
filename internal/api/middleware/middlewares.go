@@ -5,20 +5,21 @@ import (
 	"encoding/json"
 	"net/http"
 	"party-buddy/internal/api"
-	"party-buddy/internal/api/handlers"
 	"party-buddy/internal/db"
 )
 
+// DBUsingMiddleware is a middleware for db usage
 type DBUsingMiddleware struct {
-	ctx  context.Context
-	pool *db.DBPool
+	Ctx  context.Context
+	Pool *db.DBPool
 }
 
-func (dbm *DBUsingMiddleware) Middleware(next handlers.DBUsingHandler) http.Handler {
+// Middleware starts transaction and puts the tx (pgx.Tx) and ctx (context.Context) to request context
+func (dbm DBUsingMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		encoder := json.NewEncoder(w)
 
-		tx, err := dbm.pool.Pool().Begin(dbm.ctx)
+		tx, err := dbm.Pool.Pool().Begin(dbm.Ctx)
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -27,11 +28,13 @@ func (dbm *DBUsingMiddleware) Middleware(next handlers.DBUsingHandler) http.Hand
 			return
 		}
 
-		next.SetContext(dbm.ctx)
-		next.SetTx(tx)
+		ctx := context.WithValue(r.Context(), "tx", tx)
+		ctx = context.WithValue(ctx, "ctx", dbm.Ctx)
 
-		next.ServeHTTP(w, r)
+		rWithDb := r.WithContext(ctx)
 
-		_ = tx.Rollback(dbm.ctx)
+		next.ServeHTTP(w, rWithDb)
+
+		_ = tx.Rollback(dbm.Ctx)
 	})
 }

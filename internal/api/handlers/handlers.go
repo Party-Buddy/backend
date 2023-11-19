@@ -1,10 +1,8 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"net/http"
 	"party-buddy/internal/api"
 )
@@ -18,16 +16,6 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-}
-
-type DBUsingHandler interface {
-	http.Handler
-
-	SetTx(tx pgx.Tx)
-	GetTx() pgx.Tx
-
-	SetContext(ctx context.Context)
-	GetContext() context.Context
 }
 
 type OurNotFoundHandler struct{}
