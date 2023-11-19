@@ -20,6 +20,8 @@ func ConfigureMux(ctx context.Context, pool *db.DBPool) *mux.Router {
 	dbm := middleware.DBUsingMiddleware{Pool: pool, Ctx: ctx}
 
 	// TODO: use auth middleware
-	r.Handle("/api/v1/images/{img-id}", dbm.Middleware(GetImageHandler{})).Methods(http.MethodGet)
+	r.Handle("/api/v1/images/{img-id}", GetImageHandler{}).Methods(http.MethodGet)
+
+	r.Use(dbm.Middleware)
 	return r
 }
