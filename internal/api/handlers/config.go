@@ -15,13 +15,18 @@ func ConfigureMux(pool *db.DBPool, manager *session.Manager) *mux.Router {
 	r.MethodNotAllowedHandler = OurMethodNotAllowedHandler{}
 
 	dbm := middleware.DBUsingMiddleware{Pool: pool}
+	managerMid := middleware.ManagerUsingMiddleware{Manager: manager}
+
 	r.Use(dbm.Middleware)
 
 	// TODO: delete before production
 	r.HandleFunc("/", IndexHandler).Methods(http.MethodGet)
 
-	// TODO: use auth middleware
-	r.Handle("/api/v1/images/{img-id}", middleware.AuthMiddleware(GetImageHandler{})).Methods(http.MethodGet)
+	r.Handle("/api/v1/images/{img-id}", middleware.AuthMiddleware(
+		GetImageHandler{})).Methods(http.MethodGet)
+
+	r.Handle("/api/v1/session", middleware.AuthMiddleware(
+		managerMid.Middleware(SessionConnectHandler{}))).Methods(http.MethodGet)
 
 	return r
 }
