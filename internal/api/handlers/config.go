@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"party-buddy/internal/api/middleware"
 	"party-buddy/internal/db"
+	"party-buddy/internal/session"
 )
 
 // ConfigureMux configures the handlers for HTTP routes and methods
-func ConfigureMux(pool *db.DBPool) *mux.Router {
+func ConfigureMux(pool *db.DBPool, manager *session.Manager) *mux.Router {
 	r := mux.NewRouter()
 	r.NotFoundHandler = OurNotFoundHandler{}
 	r.MethodNotAllowedHandler = OurMethodNotAllowedHandler{}

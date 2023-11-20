@@ -10,6 +10,7 @@ import (
 	"party-buddy/internal/api/handlers"
 	"party-buddy/internal/configuration"
 	"party-buddy/internal/db"
+	"party-buddy/internal/session"
 )
 
 // isImagePathAccessible tries to create a file by provided image path
@@ -62,7 +63,12 @@ func Main() {
 		log.Fatalf("Failed to init db pool: %v", err.Error())
 	}
 
-	handler := handlers.ConfigureMux(&dbpool)
+	manager := session.NewManager(&dbpool)
+
+	handler := handlers.ConfigureMux(&dbpool, manager)
+
+	// TODO: run manager properly
+	go manager.Run(ctx)
 
 	host := viper.GetString("server.host")
 	if host == "" {
