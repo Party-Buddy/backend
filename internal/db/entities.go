@@ -51,9 +51,9 @@ const (
 // UserEntity - info about user roles
 // Table - users
 type UserEntity struct {
-	ID uuid.NullUUID
+	ID uuid.NullUUID `db:"id"`
 
-	Role string
+	Role UserRole `db:"role"`
 }
 
 type TaskKind string
