@@ -31,14 +31,12 @@ func (dbm DBUsingMiddleware) Middleware(next http.Handler) http.Handler {
 			_ = encoder.Encode(dto)
 			return
 		}
+		defer tx.Rollback(r.Context())
 
 		ctx := context.WithValue(r.Context(), txKey, tx)
-
 		rWithDb := r.WithContext(ctx)
 
 		next.ServeHTTP(w, rWithDb)
-
-		_ = tx.Rollback(ctx)
 	})
 }
 
