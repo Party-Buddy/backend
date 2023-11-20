@@ -3,7 +3,7 @@ package session
 import "fmt"
 
 // UnsafeStorage stores all the session state.
-// By itself it does not provide any concurrency guarantees: if you need them, use a [Manager] instead.
+// By itself it does not provide any concurrency guarantees: if you need them, use a [SyncStorage] instead.
 type UnsafeStorage struct {
 	sessions    map[SessionId]*session
 	inviteCodes map[InviteCode]SessionId

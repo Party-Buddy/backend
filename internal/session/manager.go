@@ -14,9 +14,10 @@ import (
 const rxQueueCapacity int = 10
 
 type Manager struct {
-	db      *db.DBPool
-	storage SyncStorage
-	runChan chan runMsg
+	db       *db.DBPool
+	storage  SyncStorage
+	updaters map[SessionId]chan<- updateMsg
+	runChan  chan runMsg
 }
 
 func NewManager(db *db.DBPool) *Manager {
@@ -67,6 +68,22 @@ outer:
 	return group.Wait()
 }
 
+func (m *Manager) sendToUpdater(sid SessionId, msg updateMsg) {
+	tx, ok := m.updaters[sid]
+	if !ok {
+		return
+	}
+
+	if msg == nil {
+		close(tx)
+		delete(m.updaters, sid)
+	} else {
+		tx <- msg
+	}
+}
+
+// # Synchronous methods
+
 // NewSession creates a new session.
 //
 // Assumes all values are valid.
@@ -111,10 +128,11 @@ func (m *Manager) NewSession(
 		return
 	}
 
+	updateChan := make(chan updateMsg)
+	m.updaters[sid] = updateChan
 	m.runChan <- &runMsgSpawn{
 		sid: sid,
-		// FIXME: stuff that channel into somewhere so we can tell the updater to update
-		rx: nil,
+		rx:  updateChan,
 	}
 
 	return
@@ -197,42 +215,43 @@ func (m *Manager) onJoin(
 	reconnect bool,
 ) {
 	game, _ := s.SessionGame(sid)
-	joined := m.makeMsgJoined(player.Id, sid, &game)
-	m.sendToPlayer(ctx, player.Tx, joined)
+	joined := m.makeMsgJoined(ctx, player.Id, sid, &game)
+	m.sendToPlayer(player.Tx, joined)
 
 	players := s.Players(sid)
-	gameStatus := m.makeMsgGameStatus(players)
+	gameStatus := m.makeMsgGameStatus(ctx, players)
 
 	if reconnect {
-		m.sendToPlayer(ctx, player.Tx, gameStatus)
+		m.sendToPlayer(player.Tx, gameStatus)
 	} else {
 		for _, tx := range s.PlayerTxs(sid) {
-			m.sendToPlayer(ctx, tx, gameStatus)
+			m.sendToPlayer(tx, gameStatus)
 		}
 	}
 
-	var stateMessage any
+	var stateMessage ServerTx
 	switch state := s.SessionState(sid).(type) {
 	case *AwaitingPlayersState:
-		stateMessage = m.makeMsgWaiting(state.PlayersReady)
+		stateMessage = m.makeMsgWaiting(ctx, state.PlayersReady)
 	case *GameStartedState:
-		stateMessage = m.makeMsgGameStart(state.Deadline)
+		stateMessage = m.makeMsgGameStart(ctx, state.Deadline)
 	case *TaskStartedState:
-		stateMessage = m.makeMsgTaskStart(state.TaskIdx, state.Deadline)
+		stateMessage = m.makeMsgTaskStart(ctx, state.TaskIdx, state.Deadline)
 	case *PollStartedState:
-		stateMessage = m.makeMsgPollStart(state.TaskIdx, state.Deadline, state.Options)
+		stateMessage = m.makeMsgPollStart(ctx, state.TaskIdx, state.Deadline, state.Options)
 	case *TaskEndedState:
-		stateMessage = m.makeMsgTaskEnd(state.TaskIdx, state.Deadline, state.Results)
+		stateMessage = m.makeMsgTaskEnd(ctx, state.TaskIdx, state.Deadline, state.Results)
 	}
-	m.sendToPlayer(ctx, player.Tx, stateMessage)
+	m.sendToPlayer(player.Tx, stateMessage)
 
 	// TODO: notify the websockets handler of the current state
-	// TODO: notify the sessionUpdater of a new arrival
+
+	m.sendToUpdater(sid, &updateMsgPlayerAdded{playerId: player.Id})
 }
 
 // # Server-to-client communication
 
-func (m *Manager) sendToPlayer(ctx context.Context, tx TxChan, message any) {
+func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
 	// TODO: type message appropriately
 	// TODO: send a message to the client's websocket handler somehow
 }
@@ -247,40 +266,51 @@ func (m *Manager) closePlayerTx(
 }
 
 func (m *Manager) makeMsgJoined(
+	ctx context.Context,
 	playerId PlayerId,
 	sid SessionId,
 	game *Game,
-) any {
+) ServerTx {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgGameStatus(players []Player) any {
+func (m *Manager) makeMsgGameStatus(ctx context.Context, players []Player) ServerTx {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgTaskStart(taskIdx int, deadline time.Time) any {
+func (m *Manager) makeMsgTaskStart(ctx context.Context, taskIdx int, deadline time.Time) ServerTx {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgPollStart(taskIdx int, deadline time.Time, options []PollOption) any {
+func (m *Manager) makeMsgPollStart(
+	ctx context.Context,
+	taskIdx int,
+	deadline time.Time,
+	options []PollOption,
+) ServerTx {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgTaskEnd(taskIdx int, deadline time.Time, results []AnswerResult) any {
+func (m *Manager) makeMsgTaskEnd(
+	ctx context.Context,
+	taskIdx int,
+	deadline time.Time,
+	results []AnswerResult,
+) ServerTx {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgGameStart(deadline time.Time) any {
+func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) ServerTx {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgWaiting(playersReady map[PlayerId]struct{}) any {
+func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerId]struct{}) ServerTx {
 	// TODO
 	return nil
 }
