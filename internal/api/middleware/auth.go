@@ -51,7 +51,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		tx := TxFromContext(r.Context())
 
-		entity, err := db.GetUserByID(r.Context(), tx, uuid.NullUUID{UUID: userID, Valid: true})
+		entity, err := db.GetUserByID(r.Context(), tx, userID)
 		authInfo := AuthInfo{ID: entity.ID.UUID, Role: entity.Role}
 
 		ctx := context.WithValue(r.Context(), authKey, authInfo)

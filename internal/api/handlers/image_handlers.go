@@ -47,24 +47,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authInfo := middleware.AuthInfoFromContext(r.Context())
-	if authInfo.ID != imgMetadata.OwnerID.UUID && authInfo.Role != db.Admin {
-		ownerInfo, err := db.GetUserByID(r.Context(), tx, imgMetadata.OwnerID)
-		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			dto := api.Errorf(api.ErrOnlyOwnerAllowed, "only owner allowed")
-			_ = encoder.Encode(dto)
-			return
-		}
-		if ownerInfo.Role != db.Admin {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			dto := api.Errorf(api.ErrOnlyOwnerAllowed, "only owner allowed")
-			_ = encoder.Encode(dto)
-			return
-		}
-	}
+	// TODO: middleware.AuthInfoFromContext(r.Context())
 
 	if !imgMetadata.Uploaded {
 		w.Header().Set("Content-Type", "application/json")

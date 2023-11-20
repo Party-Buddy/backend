@@ -6,10 +6,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.NullUUID) (UserEntity, error) {
+func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (UserEntity, error) {
+	dbUserID := uuid.NullUUID{UUID: userID, Valid: true}
 	rows, err := tx.Query(ctx, `
 		SELECT * FROM users WHERE id = $1
-		`, userID)
+		`, dbUserID)
 	if err != nil {
 		return UserEntity{}, err
 	}
@@ -19,7 +20,7 @@ func GetUserByID(ctx context.Context, tx pgx.Tx, userID uuid.NullUUID) (UserEnti
 		return UserEntity{}, err
 	}
 	if len(entities) == 0 {
-		return UserEntity{ID: userID, Role: Base}, nil
+		return UserEntity{ID: dbUserID, Role: Base}, nil
 	}
 	if len(entities) > 1 {
 		return UserEntity{}, ErrToManyEntitiesWithID
