@@ -11,9 +11,11 @@ import (
 	"party-buddy/internal/db"
 )
 
+type GetImageHandler struct{}
+
 // GetImageHandler get an image from fs.
 // Before reading file it uses r.Context() to get transaction and context to check if image is uploaded
-func GetImageHandler(w http.ResponseWriter, r *http.Request) {
+func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encoder := json.NewEncoder(w)
 	vars := mux.Vars(r)
 	val, ok := vars["img-id"]
@@ -44,6 +46,8 @@ func GetImageHandler(w http.ResponseWriter, r *http.Request) {
 		_ = encoder.Encode(dto)
 		return
 	}
+
+	// TODO: middleware.AuthInfoFromContext(r.Context())
 
 	if !imgMetadata.Uploaded {
 		w.Header().Set("Content-Type", "application/json")
