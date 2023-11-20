@@ -61,6 +61,10 @@ var (
 	ErrMalformedRequest ErrorKind = "malformed-request"
 )
 
+var (
+	ErrInvalidUpgrade ErrorKind = "invalid-upgrade"
+)
+
 type Error struct {
 	Kind    ErrorKind `json:"error"`
 	Message string    `json:"message"`
