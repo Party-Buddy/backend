@@ -8,7 +8,7 @@ import (
 )
 
 // CreateSessionImageRef stores a new use of an image referenced by a session.
-func CreateSessionImageRef(tx pgx.Tx, ctx context.Context, sid uuid.UUID, imageId uuid.UUID) error {
+func CreateSessionImageRef(ctx context.Context, tx pgx.Tx, sid uuid.UUID, imageId uuid.UUID) error {
 	_, err := tx.Exec(ctx, `
 		INSERT INTO session_image_refs (image_id, session_id)
 			VALUES ($1, $2)
@@ -22,7 +22,7 @@ func CreateSessionImageRef(tx pgx.Tx, ctx context.Context, sid uuid.UUID, imageI
 }
 
 // RemoveSessionImageRefs removes all uses of images originating from a session.
-func RemoveSessionImageRefs(tx pgx.Tx, ctx context.Context, sid uuid.UUID) error {
+func RemoveSessionImageRefs(ctx context.Context, tx pgx.Tx, sid uuid.UUID) error {
 	_, err := tx.Exec(ctx, `
 		DELETE FROM session_image_refs
 			WHERE session_id = $1

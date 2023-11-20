@@ -1,4 +1,4 @@
-package storage
+package session
 
 import (
 	"crypto/rand"
@@ -110,7 +110,7 @@ type session struct {
 	playersMax    int
 	clients       map[ClientId]PlayerId
 	bannedClients map[ClientId]struct{}
-	state         state
+	state         State
 }
 
 type Game struct {
@@ -125,10 +125,7 @@ type Player struct {
 	Id       PlayerId
 	ClientId ClientId
 	Nickname string
-
-	// TODO:
-	// // Connection holds a channel that allows sending events to the client.
-	// Connection chan<- event.ServerEvent
+	Tx       TxChan
 }
 
 type PollOption struct {
