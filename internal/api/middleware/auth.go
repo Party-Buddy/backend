@@ -59,9 +59,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		authInfo := AuthInfo{ID: entity.ID.UUID, Role: entity.Role}
 
 		ctx := context.WithValue(r.Context(), authKey, authInfo)
-		rWithAuth := r.WithContext(ctx)
 
-		next.ServeHTTP(w, rWithAuth)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

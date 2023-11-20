@@ -19,9 +19,7 @@ type ManagerUsingMiddleware struct {
 func (mm ManagerUsingMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), managerKey, mm.Manager)
-		rWithDb := r.WithContext(ctx)
-
-		next.ServeHTTP(w, rWithDb)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

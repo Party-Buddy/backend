@@ -63,10 +63,8 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	authInfo := middleware.AuthInfoFromContext(r.Context())
-	_ = authInfo.ID
 
-	upgradeHeader := r.Header.Get("Upgrade")
-	if upgradeHeader != "WebSocket" {
+	if websocket.IsWebSocketUpgrade(r) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUpgradeRequired)
 		dto := api.Errorf(api.ErrInvalidUpgrade, "bad Upgrade Header")

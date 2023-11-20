@@ -38,9 +38,8 @@ func (dbm DBUsingMiddleware) Middleware(next http.Handler) http.Handler {
 		defer tx.Rollback(r.Context())
 
 		ctx := context.WithValue(r.Context(), txKey, tx)
-		rWithDb := r.WithContext(ctx)
 
-		next.ServeHTTP(w, rWithDb)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

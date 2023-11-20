@@ -13,7 +13,6 @@ type ValidateMiddleware struct {
 func (v *ValidateMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := validate.NewContext(r.Context(), v.Factory)
-		rWithValidate := r.WithContext(ctx)
-		next.ServeHTTP(w, rWithValidate)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
