@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
+	"log"
 	"net/http"
 	"party-buddy/internal/api"
 	"party-buddy/internal/db"
@@ -29,14 +30,16 @@ func (dbm DBUsingMiddleware) Middleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusInternalServerError)
 			dto := api.Errorf(api.ErrInternal, "")
 			_ = encoder.Encode(dto)
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(),
+				api.Errorf(api.ErrInternal, "failed to start transaction").Error())
+
 			return
 		}
 		defer tx.Rollback(r.Context())
 
 		ctx := context.WithValue(r.Context(), txKey, tx)
-		rWithDb := r.WithContext(ctx)
 
-		next.ServeHTTP(w, rWithDb)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

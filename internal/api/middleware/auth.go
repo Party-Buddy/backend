@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/google/uuid"
+	"log"
 	"net/http"
 	"party-buddy/internal/api"
 	"party-buddy/internal/db"
@@ -28,6 +29,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			dto := api.Errorf(api.ErrAuthRequired, "authentication required")
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -36,6 +38,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			dto := api.Errorf(api.ErrUserIdInvalid, "provided user id is not valid")
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -45,6 +48,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			dto := api.Errorf(api.ErrUserIdInvalid, "provided user id is not valid")
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -55,9 +59,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		authInfo := AuthInfo{ID: entity.ID.UUID, Role: entity.Role}
 
 		ctx := context.WithValue(r.Context(), authKey, authInfo)
-		rWithAuth := r.WithContext(ctx)
 
-		next.ServeHTTP(w, rWithAuth)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"party-buddy/internal/api"
 )
@@ -20,12 +21,13 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 type OurNotFoundHandler struct{}
 
-func (o OurNotFoundHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (o OurNotFoundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encoder := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
 	dto := api.Errorf(api.ErrNotFound, "page was not found")
 	_ = encoder.Encode(dto)
+	log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 }
 
 type OurMethodNotAllowedHandler struct{}
@@ -36,4 +38,5 @@ func (o OurMethodNotAllowedHandler) ServeHTTP(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusMethodNotAllowed)
 	dto := api.Errorf(api.ErrMethodNotAllowed, "method not allowed for endpoint: %v", r.URL.Path)
 	_ = encoder.Encode(dto)
+	log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 }

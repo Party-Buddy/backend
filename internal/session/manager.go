@@ -312,3 +312,17 @@ func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerId]
 	// TODO
 	return nil
 }
+
+func (m *Manager) SidByInviteCode(code string) (sid SessionId, ok bool) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		sid, ok = s.SidByInviteCode(InviteCode(code))
+	})
+	return
+}
+
+func (m *Manager) SessionExists(sid SessionId) (ok bool) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		ok = s.SessionExists(sid)
+	})
+	return
+}

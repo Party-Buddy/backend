@@ -10,6 +10,7 @@ import (
 	"party-buddy/internal/api/handlers"
 	"party-buddy/internal/configuration"
 	"party-buddy/internal/db"
+	"party-buddy/internal/session"
 )
 
 // isImagePathAccessible tries to create a file by provided image path
@@ -45,11 +46,13 @@ func isImagePathAccessible() error {
 func Main() {
 	configuration.ConfigureApp()
 
+	log.Printf("testing image path accessibility...")
 	err := isImagePathAccessible()
 	if err != nil {
 		log.Fatalf("Failed to test image path accessibility: %v", err.Error())
 	}
 
+	log.Printf("init db config...")
 	dbPoolConf, err := db.GetDBConfig()
 	if err != nil {
 		log.Fatalf("Failed to init db config: %v", err.Error())
@@ -57,12 +60,18 @@ func Main() {
 
 	ctx := context.Background()
 
+	log.Printf("init db pool...")
 	dbpool, err := db.InitDBPool(ctx, dbPoolConf)
 	if err != nil {
 		log.Fatalf("Failed to init db pool: %v", err.Error())
 	}
 
-	handler := handlers.ConfigureMux(&dbpool)
+	manager := session.NewManager(&dbpool)
+
+	handler := handlers.ConfigureMux(&dbpool, manager)
+
+	// TODO: run manager properly
+	go manager.Run(ctx)
 
 	host := viper.GetString("server.host")
 	if host == "" {
