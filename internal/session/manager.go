@@ -9,18 +9,63 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/sync/errgroup"
 )
+
+const rxQueueCapacity int = 10
 
 type Manager struct {
 	db      *db.DBPool
 	storage storage.SyncStorage
+	runChan chan runMsg
 }
 
 func NewManager(db *db.DBPool) *Manager {
 	return &Manager{
 		db:      db,
 		storage: storage.SyncStorage{},
+		runChan: make(chan runMsg),
 	}
+}
+
+// # Update logic
+
+type runMsg interface {
+	isRunMsg()
+}
+
+type runMsgSpawn struct {
+	sid storage.SessionId
+	rx  <-chan updateMsg
+}
+
+func (*runMsgSpawn) isRunMsg() {}
+
+func (m *Manager) Run(ctx context.Context) error {
+	group, ctx := errgroup.WithContext(ctx)
+
+outer:
+	for {
+		select {
+		case <-ctx.Done():
+			break outer
+
+		case msg := <-m.runChan:
+			switch msg := msg.(type) {
+			case *runMsgSpawn:
+				updater := sessionUpdater{
+					m:   m,
+					sid: msg.sid,
+					rx:  msg.rx,
+				}
+				group.Go(func() error {
+					return updater.run(ctx)
+				})
+			}
+		}
+	}
+
+	return group.Wait()
 }
 
 // NewSession creates a new session.
@@ -62,6 +107,16 @@ func (m *Manager) NewSession(
 			return
 		}
 	})
+
+	if err != nil {
+		return
+	}
+
+	m.runChan <- &runMsgSpawn{
+		sid: sid,
+		// FIXME: stuff that channel into somewhere so we can tell the updater to update
+		rx: nil,
+	}
 
 	return
 }
@@ -173,6 +228,7 @@ func (m *Manager) onJoin(
 	m.sendToPlayer(ctx, player.Tx, stateMessage)
 
 	// TODO: notify the websockets handler of the current state
+	// TODO: notify the sessionUpdater of a new arrival
 }
 
 // # Server-to-client communication

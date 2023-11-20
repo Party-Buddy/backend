@@ -229,7 +229,7 @@ func (s *UnsafeStorage) AddPlayer(
 	sid SessionId,
 	clientId ClientId,
 	nickname string,
-	tx chan<- any,
+	tx TxChan,
 ) (player Player, err error) {
 	session, err := s.sessionById(sid)
 	if err != nil {

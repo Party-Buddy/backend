@@ -121,18 +121,11 @@ type Game struct {
 	Tasks       []Task
 }
 
-// TODO
-type TxChan chan<- any
-
 type Player struct {
 	Id       PlayerId
 	ClientId ClientId
 	Nickname string
-
-	// TODO:
-	// // Connection holds a channel that allows sending events to the client.
-	// Connection chan<- event.ServerEvent
-	Tx TxChan
+	Tx       TxChan
 }
 
 type PollOption struct {
