@@ -19,7 +19,7 @@ type AuthInfo struct {
 	Role db.UserRole
 }
 
-// AuthMiddleware should be applied after DBUsingMiddleware
+// AuthMiddleware must be applied after DBUsingMiddleware
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		encoder := json.NewEncoder(w)
@@ -59,4 +59,8 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, rWithAuth)
 	})
+}
+
+func AuthInfoFromContext(ctx context.Context) AuthInfo {
+	return ctx.Value(authKey).(AuthInfo)
 }

@@ -11,9 +11,11 @@ import (
 	"party-buddy/internal/db"
 )
 
+type GetImageHandler struct{}
+
 // GetImageHandler get an image from fs.
 // Before reading file it uses r.Context() to get transaction and context to check if image is uploaded
-func GetImageHandler(w http.ResponseWriter, r *http.Request) {
+func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encoder := json.NewEncoder(w)
 	vars := mux.Vars(r)
 	val, ok := vars["img-id"]
@@ -43,6 +45,25 @@ func GetImageHandler(w http.ResponseWriter, r *http.Request) {
 		dto := api.Errorf(api.ErrNotFound, "no record in db")
 		_ = encoder.Encode(dto)
 		return
+	}
+
+	authInfo := middleware.AuthInfoFromContext(r.Context())
+	if authInfo.ID != imgMetadata.OwnerID.UUID && authInfo.Role != db.Admin {
+		ownerInfo, err := db.GetUserByID(r.Context(), tx, imgMetadata.OwnerID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			dto := api.Errorf(api.ErrOnlyOwnerAllowed, "only owner allowed")
+			_ = encoder.Encode(dto)
+			return
+		}
+		if ownerInfo.Role != db.Admin {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			dto := api.Errorf(api.ErrOnlyOwnerAllowed, "only owner allowed")
+			_ = encoder.Encode(dto)
+			return
+		}
 	}
 
 	if !imgMetadata.Uploaded {
