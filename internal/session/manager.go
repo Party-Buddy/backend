@@ -11,8 +11,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const rxQueueCapacity int = 10
-
 type Manager struct {
 	db       *db.DBPool
 	storage  SyncStorage
