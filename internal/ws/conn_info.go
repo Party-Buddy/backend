@@ -37,14 +37,47 @@ func NewConnInfo(
 }
 
 func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
+	ch := make(chan session.ServerTx)
+	c.servDataChan = ch
 	go c.runReader(ctx)
 	go c.runWriter(ctx)
 }
 
 func (c *ConnInfo) runWriter(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
 
+		case msg := <-c.servDataChan:
+			{
+				_ = c.wsConn.WriteJSON(msg)
+			}
+		}
+	}
 }
 
 func (c *ConnInfo) runReader(ctx context.Context) {
+	for {
+		_, bytes, err := c.wsConn.ReadMessage()
+		if err != nil {
+			// TODO: ?
+		}
+		msg, err := ParseMessage(ctx, bytes)
+		if err != nil {
+			// TODO: send malformed message to writer
+			continue
+		}
 
+		// TODO: remove
+		msg.isRecvMessage()
+
+		// TODO: get state
+		// TODO: check message type availability for the state
+	}
+}
+
+func (c *ConnInfo) Dispose() {
+	close(c.servDataChan)
+	_ = c.wsConn.Close()
 }
