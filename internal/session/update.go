@@ -1,9 +1,6 @@
 package session
 
-import (
-	"context"
-	"party-buddy/internal/session/storage"
-)
+import "context"
 
 // # Update messages
 
@@ -12,13 +9,13 @@ type updateMsg interface {
 }
 
 type updateMsgPlayerAdded struct {
-	playerId storage.PlayerId
+	playerId PlayerId
 }
 
 func (*updateMsgPlayerAdded) isUpdateMsg() {}
 
 type updateMsgChangeStateTo struct {
-	nextState storage.State
+	nextState State
 }
 
 func (updateMsgChangeStateTo) isUpdateMsg() {}
@@ -27,7 +24,7 @@ func (updateMsgChangeStateTo) isUpdateMsg() {}
 
 type sessionUpdater struct {
 	m   *Manager
-	sid storage.SessionId
+	sid SessionId
 	rx  <-chan updateMsg
 }
 
@@ -48,6 +45,6 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 	}
 }
 
-func (u *sessionUpdater) changeStateTo(nextState storage.State) {
+func (u *sessionUpdater) changeStateTo(nextState State) {
 	// TODO: kill tickers, spawn tickers, etc
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"party-buddy/internal/db"
-	"party-buddy/internal/session/storage"
 	"party-buddy/internal/util"
 	"time"
 
@@ -16,14 +15,14 @@ const rxQueueCapacity int = 10
 
 type Manager struct {
 	db      *db.DBPool
-	storage storage.SyncStorage
+	storage SyncStorage
 	runChan chan runMsg
 }
 
 func NewManager(db *db.DBPool) *Manager {
 	return &Manager{
 		db:      db,
-		storage: storage.SyncStorage{},
+		storage: SyncStorage{},
 		runChan: make(chan runMsg),
 	}
 }
@@ -35,7 +34,7 @@ type runMsg interface {
 }
 
 type runMsgSpawn struct {
-	sid storage.SessionId
+	sid SessionId
 	rx  <-chan updateMsg
 }
 
@@ -73,13 +72,13 @@ outer:
 // Assumes all values are valid.
 func (m *Manager) NewSession(
 	ctx context.Context,
-	game *storage.Game,
-	owner storage.ClientId,
+	game *Game,
+	owner ClientId,
 	ownerNickname string,
 	requireReady bool,
 	playersMax int,
-) (sid storage.SessionId, code storage.InviteCode, ownerId storage.PlayerId, err error) {
-	m.storage.Atomically(func(s *storage.UnsafeStorage) {
+) (sid SessionId, code InviteCode, ownerId PlayerId, err error) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
 		sid, code, ownerId, err = s.NewSession(game, owner, ownerNickname, requireReady, playersMax)
 		if err != nil {
 			return
@@ -121,7 +120,7 @@ func (m *Manager) NewSession(
 	return
 }
 
-func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid storage.SessionId, imageId storage.ImageId) error {
+func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionId, imageId ImageId) error {
 	if imageId.Valid {
 		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageId.UUID); err != nil {
 			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageId, sid, err)
@@ -133,12 +132,12 @@ func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid storage.Sess
 
 func (m *Manager) JoinSession(
 	ctx context.Context,
-	sid storage.SessionId,
-	clientId storage.ClientId,
+	sid SessionId,
+	clientId ClientId,
 	nickname string,
-	tx storage.TxChan,
-) (playerId storage.PlayerId, err error) {
-	m.storage.Atomically(func(s *storage.UnsafeStorage) {
+	tx TxChan,
+) (playerId PlayerId, err error) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
 		if !s.SessionExists(sid) {
 			err = ErrNoSession
 			return
@@ -177,10 +176,10 @@ func (m *Manager) JoinSession(
 
 func (m *Manager) onReconnect(
 	ctx context.Context,
-	s *storage.UnsafeStorage,
-	sid storage.SessionId,
-	player *storage.Player,
-	tx storage.TxChan,
+	s *UnsafeStorage,
+	sid SessionId,
+	player *Player,
+	tx TxChan,
 ) {
 	// TODO: handle reconnects
 
@@ -192,9 +191,9 @@ func (m *Manager) onReconnect(
 
 func (m *Manager) onJoin(
 	ctx context.Context,
-	s *storage.UnsafeStorage,
-	sid storage.SessionId,
-	player *storage.Player,
+	s *UnsafeStorage,
+	sid SessionId,
+	player *Player,
 	reconnect bool,
 ) {
 	game, _ := s.SessionGame(sid)
@@ -214,15 +213,15 @@ func (m *Manager) onJoin(
 
 	var stateMessage any
 	switch state := s.SessionState(sid).(type) {
-	case *storage.AwaitingPlayersState:
+	case *AwaitingPlayersState:
 		stateMessage = m.makeMsgWaiting(state.PlayersReady)
-	case *storage.GameStartedState:
+	case *GameStartedState:
 		stateMessage = m.makeMsgGameStart(state.Deadline)
-	case *storage.TaskStartedState:
+	case *TaskStartedState:
 		stateMessage = m.makeMsgTaskStart(state.TaskIdx, state.Deadline)
-	case *storage.PollStartedState:
+	case *PollStartedState:
 		stateMessage = m.makeMsgPollStart(state.TaskIdx, state.Deadline, state.Options)
-	case *storage.TaskEndedState:
+	case *TaskEndedState:
 		stateMessage = m.makeMsgTaskEnd(state.TaskIdx, state.Deadline, state.Results)
 	}
 	m.sendToPlayer(ctx, player.Tx, stateMessage)
@@ -233,30 +232,30 @@ func (m *Manager) onJoin(
 
 // # Server-to-client communication
 
-func (m *Manager) sendToPlayer(ctx context.Context, tx storage.TxChan, message any) {
+func (m *Manager) sendToPlayer(ctx context.Context, tx TxChan, message any) {
 	// TODO: type message appropriately
 	// TODO: send a message to the client's websocket handler somehow
 }
 
 func (m *Manager) closePlayerTx(
 	ctx context.Context,
-	s *storage.UnsafeStorage,
-	sid storage.SessionId,
-	playerId storage.PlayerId,
+	s *UnsafeStorage,
+	sid SessionId,
+	playerId PlayerId,
 ) {
 	// TODO
 }
 
 func (m *Manager) makeMsgJoined(
-	playerId storage.PlayerId,
-	sid storage.SessionId,
-	game *storage.Game,
+	playerId PlayerId,
+	sid SessionId,
+	game *Game,
 ) any {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgGameStatus(players []storage.Player) any {
+func (m *Manager) makeMsgGameStatus(players []Player) any {
 	// TODO
 	return nil
 }
@@ -266,12 +265,12 @@ func (m *Manager) makeMsgTaskStart(taskIdx int, deadline time.Time) any {
 	return nil
 }
 
-func (m *Manager) makeMsgPollStart(taskIdx int, deadline time.Time, options []storage.PollOption) any {
+func (m *Manager) makeMsgPollStart(taskIdx int, deadline time.Time, options []PollOption) any {
 	// TODO
 	return nil
 }
 
-func (m *Manager) makeMsgTaskEnd(taskIdx int, deadline time.Time, results []storage.AnswerResult) any {
+func (m *Manager) makeMsgTaskEnd(taskIdx int, deadline time.Time, results []AnswerResult) any {
 	// TODO
 	return nil
 }
@@ -281,7 +280,7 @@ func (m *Manager) makeMsgGameStart(deadline time.Time) any {
 	return nil
 }
 
-func (m *Manager) makeMsgWaiting(playersReady map[storage.PlayerId]struct{}) any {
+func (m *Manager) makeMsgWaiting(playersReady map[PlayerId]struct{}) any {
 	// TODO
 	return nil
 }
