@@ -55,7 +55,9 @@ func Main() {
 		log.Fatalf("Failed to init db config: %v", err.Error())
 	}
 
-	dbpool, err := db.InitDBPool(context.Background(), dbPoolConf)
+	ctx := context.Background()
+
+	dbpool, err := db.InitDBPool(ctx, dbPoolConf)
 	if err != nil {
 		log.Fatalf("Failed to init db pool: %v", err.Error())
 	}

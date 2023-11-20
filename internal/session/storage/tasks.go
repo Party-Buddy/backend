@@ -12,9 +12,9 @@ type Task interface {
 }
 
 type BaseTask struct {
-	Name        string
-	Description string
-	ImageId     ImageId
+	Name         string
+	Description  string
+	ImageId      ImageId
 	TaskDuration time.Duration
 }
 

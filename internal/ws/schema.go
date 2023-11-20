@@ -321,8 +321,8 @@ func ParseErrorToMessageError(err error) error {
 	var typeError *json.UnmarshalTypeError
 	if errors.As(err, &typeError) {
 		return &Error{
-			RefId: nil,
-			Code: ErrMalformedMsg,
+			RefId:   nil,
+			Code:    ErrMalformedMsg,
 			Message: fmt.Sprintf("in field `%s`: %s has an illegal type", typeError.Field, typeError.Value),
 		}
 	}

@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gorilla/mux"
 	"net/http"
+	"party-buddy/internal/api/middleware"
 	"party-buddy/internal/db"
 )
 
@@ -15,7 +16,11 @@ func ConfigureMux(pool *db.DBPool) *mux.Router {
 	// TODO: delete before production
 	r.HandleFunc("/", IndexHandler).Methods(http.MethodGet)
 
+	dbm := middleware.DBUsingMiddleware{Pool: pool}
+
 	// TODO: use auth middleware
-	r.HandleFunc("/api/v1/images/{img-id}", GetImageHandler(pool)).Methods(http.MethodGet)
+	r.HandleFunc("/api/v1/images/{img-id}", GetImageHandler).Methods(http.MethodGet)
+
+	r.Use(dbm.Middleware)
 	return r
 }
