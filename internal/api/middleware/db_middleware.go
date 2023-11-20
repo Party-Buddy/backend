@@ -27,7 +27,7 @@ func (dbm DBUsingMiddleware) Middleware(next http.Handler) http.Handler {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			dto := api.Errorf(api.ErrInternal, "failed to start transaction")
+			dto := api.Errorf(api.ErrInternal, "")
 			_ = encoder.Encode(dto)
 			return
 		}
