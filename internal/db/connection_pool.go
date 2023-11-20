@@ -10,6 +10,7 @@ import (
 // DBPool is a wrapper over *pgxpool.Pool
 type DBPool struct {
 	pool *pgxpool.Pool
+	ctx  context.Context
 }
 
 // InitDBPool initializes the DBPool by given *pgxpool.Config

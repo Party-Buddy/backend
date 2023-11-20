@@ -10,7 +10,6 @@ import (
 	"party-buddy/internal/api/handlers"
 	"party-buddy/internal/configuration"
 	"party-buddy/internal/db"
-	"party-buddy/internal/validate"
 )
 
 // isImagePathAccessible tries to create a file by provided image path
@@ -56,17 +55,14 @@ func Main() {
 		log.Fatalf("Failed to init db config: %v", err.Error())
 	}
 
-	dbpool, err := db.InitDBPool(context.Background(), dbPoolConf)
+	ctx := context.Background()
+
+	dbpool, err := db.InitDBPool(ctx, dbPoolConf)
 	if err != nil {
 		log.Fatalf("Failed to init db pool: %v", err.Error())
 	}
 
-	ctx := context.Background()
-
-	factory := validate.NewValidationFactory()
-	ctx = validate.NewContext(ctx, factory)
-
-	handler := handlers.ConfigureMux(ctx, &dbpool)
+	handler := handlers.ConfigureMux(&dbpool)
 
 	host := viper.GetString("server.host")
 	if host == "" {

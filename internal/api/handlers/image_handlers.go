@@ -1,14 +1,13 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/jackc/pgx/v5"
 	"image/jpeg"
 	"net/http"
 	"party-buddy/internal/api"
+	"party-buddy/internal/api/middleware"
 	"party-buddy/internal/db"
 )
 
@@ -34,10 +33,9 @@ func GetImageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx := r.Context().Value("tx").(pgx.Tx)
-	ctx := r.Context().Value("ctx").(context.Context)
+	tx := middleware.TxFromContext(r.Context())
 
-	imgMetadata, err := db.GetImageMetadataByID(tx, ctx, uuid.NullUUID{UUID: imgID, Valid: true})
+	imgMetadata, err := db.GetImageMetadataByID(tx, r.Context(), uuid.NullUUID{UUID: imgID, Valid: true})
 
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")

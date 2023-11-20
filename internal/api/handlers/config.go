@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"github.com/gorilla/mux"
 	"net/http"
 	"party-buddy/internal/api/middleware"
@@ -9,7 +8,7 @@ import (
 )
 
 // ConfigureMux configures the handlers for HTTP routes and methods
-func ConfigureMux(ctx context.Context, pool *db.DBPool) *mux.Router {
+func ConfigureMux(pool *db.DBPool) *mux.Router {
 	r := mux.NewRouter()
 	r.NotFoundHandler = OurNotFoundHandler{}
 	r.MethodNotAllowedHandler = OurMethodNotAllowedHandler{}
@@ -17,7 +16,7 @@ func ConfigureMux(ctx context.Context, pool *db.DBPool) *mux.Router {
 	// TODO: delete before production
 	r.HandleFunc("/", IndexHandler).Methods(http.MethodGet)
 
-	dbm := middleware.DBUsingMiddleware{Pool: pool, Ctx: ctx}
+	dbm := middleware.DBUsingMiddleware{Pool: pool}
 
 	// TODO: use auth middleware
 	r.HandleFunc("/api/v1/images/{img-id}", GetImageHandler).Methods(http.MethodGet)
