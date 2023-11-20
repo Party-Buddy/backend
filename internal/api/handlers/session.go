@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"log"
 	"net/http"
 	"party-buddy/internal/api"
 	"party-buddy/internal/api/middleware"
@@ -27,6 +28,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusBadRequest)
 			dto := api.Errorf(api.ErrParamMissing, "no query params provided")
 			_ = encoder.Encode(dto)
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 			return
 		}
 		id, ok := manager.SidByInviteCode(code)
@@ -35,6 +37,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "invalid invite code or session identifier")
 			_ = encoder.Encode(dto)
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 			return
 		}
 		sid = id
@@ -45,6 +48,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "invalid invite code or session identifier")
 			_ = encoder.Encode(dto)
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 			return
 		}
 		sid = session.SessionId(id)
@@ -53,6 +57,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "invalid invite code or session identifier")
 			_ = encoder.Encode(dto)
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 			return
 		}
 	}
@@ -66,6 +71,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusUpgradeRequired)
 		dto := api.Errorf(api.ErrInvalidUpgrade, "bad Upgrade Header")
 		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 		return
 	}
 
@@ -80,9 +86,11 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusInternalServerError)
 		dto := api.Errorf(api.ErrInternal, "failed to upgrade connection to web socket")
 		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 		return
 	}
 
 	info := ws.NewConnInfo(manager, wsConn, session.ClientId(authInfo.ID), sid)
 	info.StartReadAndWriteConn(r.Context())
+	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
 }

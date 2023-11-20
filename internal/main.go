@@ -46,11 +46,13 @@ func isImagePathAccessible() error {
 func Main() {
 	configuration.ConfigureApp()
 
+	log.Printf("testing image path accessibility...")
 	err := isImagePathAccessible()
 	if err != nil {
 		log.Fatalf("Failed to test image path accessibility: %v", err.Error())
 	}
 
+	log.Printf("init db config...")
 	dbPoolConf, err := db.GetDBConfig()
 	if err != nil {
 		log.Fatalf("Failed to init db config: %v", err.Error())
@@ -58,6 +60,7 @@ func Main() {
 
 	ctx := context.Background()
 
+	log.Printf("init db pool...")
 	dbpool, err := db.InitDBPool(ctx, dbPoolConf)
 	if err != nil {
 		log.Fatalf("Failed to init db pool: %v", err.Error())

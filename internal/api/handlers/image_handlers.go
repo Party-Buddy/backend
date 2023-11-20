@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"image/jpeg"
+	"log"
 	"net/http"
 	"party-buddy/internal/api"
 	"party-buddy/internal/api/middleware"
@@ -24,6 +25,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		dto := api.Errorf(api.ErrNotFound, "img-id not provided")
 		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 		return
 	}
 	imgID, err := uuid.Parse(val)
@@ -32,6 +34,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		dto := api.Errorf(api.ErrNotFound, "invalid url")
 		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 		return
 	}
 
@@ -44,6 +47,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		dto := api.Errorf(api.ErrNotFound, "no record in db")
 		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 		return
 	}
 
@@ -54,6 +58,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		dto := api.Errorf(api.ErrNotFound, "image is not uploaded")
 		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 		return
 	}
 
@@ -63,11 +68,12 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		dto := api.Errorf(api.ErrInternal, "image not found in storage")
 		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
 		return
 	}
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.WriteHeader(http.StatusOK)
 	_ = jpeg.Encode(w, img, nil)
-
+	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
 }
