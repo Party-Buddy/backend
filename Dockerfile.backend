@@ -1,12 +1,9 @@
 # syntax=docker/dockerfile:1
 
 ARG GO_VERSION=1.21
-ARG BUILD_DEBIAN_CODENAME=bookworm
-ARG RUN_DEBIAN_VERSION=12
+ARG DEBIAN_CODENAME=bookworm
 
-FROM golang:${GO_VERSION}-${BUILD_DEBIAN_CODENAME} AS build
-
-ARG RUN_DEBIAN_VERSION
+FROM golang:${GO_VERSION}-${DEBIAN_CODENAME} AS build
 
 WORKDIR /app
 
@@ -16,10 +13,12 @@ RUN go mod download && go mod verify
 COPY . .
 RUN CGO_ENABLED=0 make build
 
-FROM gcr.io/distroless/static-debian${RUN_DEBIAN_VERSION}
+ARG DEBIAN_CODENAME
+FROM debian:${DEBIAN_CODENAME}
 
 WORKDIR /app
 
 COPY --from=build /app/party-buddy /app/party-buddy
+COPY scripts/start-backend.sh /app/
 
-ENTRYPOINT ["./party-buddy"]
+ENTRYPOINT ["./start-backend.sh"]

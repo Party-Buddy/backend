@@ -12,7 +12,10 @@ services:
     environment:
       POSTGRES_USER: pb
       POSTGRES_DB: pb
-      POSTGRES_PASSWORD: "thrill-unit-wax-group"
+      POSTGRES_PASSWORD_FILE: "/run/secrets/postgres-passwd"
+
+    secrets:
+      - "postgres-passwd"
 
     volumes:
       - "db:/var/lib/postgres/data"
@@ -31,14 +34,18 @@ services:
       - "9602:8000"
 
     environment:
-      PARTY_BUDDY_HOST: "127.0.0.1"
+      PARTY_BUDDY_HOST: "0.0.0.0"
       PARTY_BUDDY_PORT: "8000"
       PARTY_BUDDY_DB_HOST: "postgres"
       PARTY_BUDDY_DB_PORT: "5432"
       PARTY_BUDDY_DB_NAME: "pb"
       PARTY_BUDDY_DB_USER: "pb"
-      PARTY_BUDDY_DB_PASSWORD: "thrill-unit-wax-group"
       PARTY_BUDDY_IMG_PATH: "/app/images"
+
+      START_DB_PASSWORD_FILE: "/run/secrets/postgres-passwd"
+
+    secrets:
+      - postgres-passwd
 
     volumes:
       - "backend-cfg:/app/configs:ro"
@@ -46,6 +53,10 @@ services:
 
 networks:
   backend:
+
+secrets:
+  postgres-passwd:
+    external: true
 
 volumes:
   db:
