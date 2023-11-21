@@ -13,6 +13,10 @@ type baseTx struct {
 	Ctx context.Context
 }
 
+func (m *baseTx) Context() context.Context {
+	return m.Ctx
+}
+
 type MsgError struct {
 	baseTx
 
@@ -29,7 +33,3 @@ type MsgJoined struct {
 }
 
 func (*MsgJoined) isServerTx() {}
-
-func (m *MsgJoined) Context() context.Context {
-	return m.Ctx
-}
