@@ -133,6 +133,8 @@ type MessageError struct {
 	Error
 }
 
+func (*MessageError) isRespMessage() {}
+
 type MessageJoin struct {
 	BaseMessage
 

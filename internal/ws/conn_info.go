@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"github.com/gorilla/websocket"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
@@ -58,16 +59,17 @@ func (c *ConnInfo) runWriter(ctx context.Context) {
 
 		case msg := <-c.servDataChan:
 			{
-				// TODO: ServeTx -> BaseMessage
+				// TODO: ServeTx -> RespMessage
 				// TODO: send converted msg to c.msgToClientChan
 				switch msg.(type) {
 				case *session.MsgJoined:
 					joinedServ := msg.(*session.MsgJoined)
 					joinedMsg, err := MsgJoined2MessageJoined(*joinedServ)
 					if err != nil {
-
+						// TODO: handle error
 					}
 					c.msgToClientChan <- &joinedMsg
+					// TODO: set msg-id, time, ref-id
 				}
 			}
 
@@ -88,7 +90,13 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 		}
 		msg, err := ws.ParseMessage(ctx, bytes)
 		if err != nil {
-			// TODO: send malformed message to writer
+			err = ws.ParseErrorToMessageError(err)
+			var errDto *ws.Error
+			errors.As(err, &errDto)
+			rspMessage := ws.MessageError{}
+			rspMessage.Error = *errDto
+			// TODO: rspMessage.BaseMessage
+			c.msgToClientChan <- &rspMessage
 			continue
 		}
 

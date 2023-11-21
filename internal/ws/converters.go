@@ -5,7 +5,19 @@ import (
 	"party-buddy/internal/schemas"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
+	"time"
 )
+
+func SessionPollDuration2PollDuration(pd session.PollDurationer) (schemas.DurationType, error) {
+	switch t := pd.(type) {
+	case session.FixedPollDuration:
+		return schemas.DurationType{Kind: schemas.Fixed, Secs: uint16(time.Duration(t).Seconds())}, nil
+
+	case session.DynamicPollDuration:
+		return schemas.DurationType{Kind: schemas.Dynamic, Secs: uint16(time.Duration(t).Seconds())}, nil
+	}
+	return schemas.DurationType{}, errors.New("bad poll duration from server")
+}
 
 func SessionTask2SchemaTask(t session.Task) (schemas.SchemaTask, error) {
 	task := schemas.BaseTask{}
@@ -20,9 +32,7 @@ func SessionTask2SchemaTask(t session.Task) (schemas.SchemaTask, error) {
 			task.Type = schemas.Photo
 			pollTask := schemas.PollTask{}
 			pollTask.BaseTask = task
-
-			// TODO: how to set poll duration?
-			_ = sessionPollTask
+			pollTask.PollDuration, _ = SessionPollDuration2PollDuration(sessionPollTask.PollDuration)
 			return &pollTask, nil
 		}
 	case *session.TextTask:
@@ -31,9 +41,7 @@ func SessionTask2SchemaTask(t session.Task) (schemas.SchemaTask, error) {
 			task.Type = schemas.Text
 			pollTask := schemas.PollTask{}
 			pollTask.BaseTask = task
-
-			// TODO: how to set poll duration?
-			_ = sessionPollTask
+			pollTask.PollDuration, _ = SessionPollDuration2PollDuration(sessionPollTask.PollDuration)
 			return &pollTask, nil
 		}
 	case *session.CheckedTextTask:
