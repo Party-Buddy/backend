@@ -8,6 +8,7 @@ import (
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
 	"party-buddy/internal/ws/converters"
+	"party-buddy/internal/ws/utils"
 	"sync/atomic"
 )
 
@@ -129,7 +130,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 			var errDto *ws.Error
 			errors.As(err, &errDto)
 			rspMessage := ws.MessageError{
-				BaseMessage: converters.GenBaseMessage(&ws.MsgKindError),
+				BaseMessage: utils.GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
 			}
 			log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",

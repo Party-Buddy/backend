@@ -6,6 +6,7 @@ import (
 	"party-buddy/internal/schemas"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
+	"party-buddy/internal/ws/utils"
 	"time"
 )
 
@@ -70,7 +71,7 @@ func ToGameDetails(g session.Game) schemas.GameDetails {
 
 func ToMessageJoined(m session.MsgJoined) ws.MessageJoined {
 	msg := ws.MessageJoined{}
-	msg.BaseMessage = GenBaseMessage(&ws.MsgKindJoined)
+	msg.BaseMessage = utils.GenBaseMessage(&ws.MsgKindJoined)
 	msg.Sid = m.SessionId.UUID()
 	msg.PlayerID = m.PlayerId.UUID().ID()
 	msg.Game = ToGameDetails(*m.Game)
