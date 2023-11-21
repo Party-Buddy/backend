@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/gorilla/websocket"
+	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
 )
@@ -45,10 +46,12 @@ func NewConnInfo(
 }
 
 func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
+	log.Printf("ConnInfo start serving for client: %v", c.client.UUID().String())
 	c.servDataChan = make(chan session.ServerTx)
 	c.msgToClientChan = make(chan ws.RespMessage)
 	go c.runReader(ctx)
 	go c.runWriter(ctx)
+	log.Printf("ConnInfo start serving for client: %v", c.client.UUID().String())
 }
 
 func (c *ConnInfo) runWriter(ctx context.Context) {
@@ -66,14 +69,13 @@ func (c *ConnInfo) runWriter(ctx context.Context) {
 					joinedServ := msg.(*session.MsgJoined)
 					joinedMsg, err := MsgJoined2MessageJoined(*joinedServ)
 					if err != nil {
-						// TODO: handle error
+						// TODO: handle error (means that something went wrong during converting)
 					}
 					newMsgId := ws.GenerateNewMessageID()
 					joinedMsg.MsgId = &newMsgId
 					refID := joinMsgIDFromContext(joinedServ.Context())
 					joinedMsg.MsgId = &refID
 
-					// TODO: set time
 					c.msgToClientChan <- &joinedMsg
 				}
 			}
@@ -98,6 +100,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 	for {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
+			log.Printf("ConnInfo client: %v err: %v", c.client.UUID().String(), err.Error())
 			// TODO: ?
 			continue
 		}
@@ -106,11 +109,12 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 			err = ws.ParseErrorToMessageError(err)
 			var errDto *ws.Error
 			errors.As(err, &errDto)
-			rspMessage := ws.MessageError{}
-			rspMessage.Error = *errDto
-			newMsgID := ws.GenerateNewMessageID()
-			rspMessage.BaseMessage = ws.BaseMessage{Kind: &ws.MsgKindError, MsgId: &newMsgID}
-			// TODO: set time
+			rspMessage := ws.MessageError{
+				BaseMessage: genBaseMessage(&ws.MsgKindError),
+				Error:       *errDto,
+			}
+			log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
+				c.client.UUID().String(), errDto.Message, errDto.Code)
 			c.msgToClientChan <- &rspMessage
 			continue
 		}
@@ -134,6 +138,8 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 								Message: err.Error(),
 							},
 						}
+						log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
+							c.client.UUID().String(), err.Error(), errMsg.Code)
 						c.msgToClientChan <- &errMsg
 					}
 				case errors.Is(err, session.ErrGameInProgress):
@@ -146,6 +152,8 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 								Message: err.Error(),
 							},
 						}
+						log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
+							c.client.UUID().String(), err.Error(), errMsg.Code)
 						c.msgToClientChan <- &errMsg
 					}
 				case errors.Is(err, session.ErrClientBanned):
@@ -158,6 +166,8 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 								Message: err.Error(),
 							},
 						}
+						log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
+							c.client.UUID().String(), err.Error(), errMsg.Code)
 						c.msgToClientChan <- &errMsg
 					}
 				case errors.Is(err, session.ErrNicknameUsed):
@@ -170,6 +180,8 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 								Message: err.Error(),
 							},
 						}
+						log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
+							c.client.UUID().String(), err.Error(), errMsg.Code)
 						c.msgToClientChan <- &errMsg
 					}
 				case errors.Is(err, session.ErrLobbyFull):
@@ -182,10 +194,13 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 								Message: err.Error(),
 							},
 						}
+						log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
+							c.client.UUID().String(), err.Error(), errMsg.Code)
 						c.msgToClientChan <- &errMsg
 					}
 				}
-
+				log.Printf("ConnInfo client: %v parse message err: %v (code _)",
+					c.client.UUID().String(), err.Error())
 				continue
 			}
 			c.playerID = playerID
