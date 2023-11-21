@@ -8,7 +8,7 @@ import (
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
 	"party-buddy/internal/ws/converters"
-	"time"
+	"sync/atomic"
 )
 
 type ConnInfo struct {
@@ -31,6 +31,11 @@ type ConnInfo struct {
 
 	// playerID is the player identifier inside the game
 	playerID session.PlayerId
+
+	// msgID is used for getting new msg-id
+	// DO NOT get the data by accessing field
+	// use nextMsgID instead
+	msgID atomic.Uint32
 }
 
 func NewConnInfo(
@@ -44,6 +49,7 @@ func NewConnInfo(
 		wsConn:  wsConn,
 		client:  clientId,
 		sid:     sid,
+		msgID:   atomic.Uint32{},
 	}
 }
 
@@ -75,7 +81,9 @@ func (c *ConnInfo) runServeToWriterConverter(
 				case *session.MsgJoined:
 					joinedMsg := converters.ToMessageJoined(*m)
 					refID := msgIDFromContext(m.Context())
-					joinedMsg.MsgId = &refID
+					joinedMsg.RefID = &refID
+					id := ws.MessageId(c.nextMsgID())
+					joinedMsg.MsgId = &id
 
 					msgChan <- &joinedMsg
 				}
@@ -112,7 +120,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 		if err != nil {
 			log.Printf("ConnInfo client: %v err: %v", c.client.UUID().String(), err.Error())
 
-			// TODO: close connection
+			// TODO: close connections
 			return
 		}
 		msg, err := ws.ParseMessage(ctx, bytes)
@@ -121,7 +129,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 			var errDto *ws.Error
 			errors.As(err, &errDto)
 			rspMessage := ws.MessageError{
-				BaseMessage: genBaseMessage(&ws.MsgKindError),
+				BaseMessage: GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
 			}
 			log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
@@ -138,30 +146,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:
-			playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, c.servDataChan)
-			if err != nil {
-				var errMsg ws.MessageError
-				switch {
-				case errors.Is(err, session.ErrNoSession):
-					errMsg = genMessageError(m.MsgId, ws.ErrSessionExpired, "no such session")
-				case errors.Is(err, session.ErrGameInProgress):
-					errMsg = genMessageError(m.MsgId, ws.ErrUnknownSession, "game in progress now, no clients accepted")
-				case errors.Is(err, session.ErrClientBanned):
-					errMsg = genMessageError(m.MsgId, ws.ErrUnknownSession, "unknown session in request")
-				case errors.Is(err, session.ErrNicknameUsed):
-					errMsg = genMessageError(m.MsgId, ws.ErrNicknameUsed, "nickname is already used")
-				case errors.Is(err, session.ErrLobbyFull):
-					errMsg = genMessageError(m.MsgId, ws.ErrLobbyFull, "lobby is full")
-				default:
-					errMsg = genMessageError(m.MsgId, ws.ErrInternal, "internal error occurred")
-				}
-				log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
-					c.client.UUID().String(), err.Error(), errMsg.Code)
-				c.msgToClientChan <- &errMsg
-				// TODO: close connections
-				return
-			}
-			c.playerID = playerID
+			c.handleJoin(ctx, m)
 		}
 
 	}
@@ -173,19 +158,6 @@ func (c *ConnInfo) Dispose() {
 	_ = c.wsConn.Close()
 }
 
-func genBaseMessage(kind *ws.MessageKind) ws.BaseMessage {
-	newMsgID := ws.GenerateNewMessageID()
-	now := time.Now()
-	return ws.BaseMessage{Kind: kind, MsgId: &newMsgID, Time: (*ws.Time)(&now)}
-}
-
-func genMessageError(refID *ws.MessageId, code ws.ErrorKind, msg string) ws.MessageError {
-	return ws.MessageError{
-		BaseMessage: genBaseMessage(&ws.MsgKindError),
-		Error: ws.Error{
-			RefId:   refID,
-			Code:    code,
-			Message: msg,
-		},
-	}
+func (c *ConnInfo) nextMsgID() uint32 {
+	return c.msgID.Add(1)
 }
