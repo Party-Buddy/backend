@@ -134,7 +134,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 							BaseMessage: genBaseMessage(&ws.MsgKindError),
 							Error: ws.Error{
 								RefId:   joinMsg.MsgId,
-								Code:    ws.ErrInternal, // TODO: maybe new error?
+								Code:    ws.ErrUnknownSession,
 								Message: err.Error(),
 							},
 						}
@@ -148,7 +148,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 							BaseMessage: genBaseMessage(&ws.MsgKindError),
 							Error: ws.Error{
 								RefId:   joinMsg.MsgId,
-								Code:    ws.ErrInternal,
+								Code:    ws.ErrUnknownSession,
 								Message: err.Error(),
 							},
 						}
@@ -162,7 +162,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 							BaseMessage: genBaseMessage(&ws.MsgKindError),
 							Error: ws.Error{
 								RefId:   joinMsg.MsgId,
-								Code:    ws.ErrInternal, // TODO: maybe new error?
+								Code:    ws.ErrUnknownSession,
 								Message: err.Error(),
 							},
 						}

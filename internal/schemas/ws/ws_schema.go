@@ -104,6 +104,7 @@ var (
 	ErrSessionExpired ErrorKind = "session-expired"
 	ErrLobbyFull      ErrorKind = "lobby-full"
 	ErrNicknameUsed   ErrorKind = "nickname-used"
+	ErrUnknownSession ErrorKind = "unknown-session"
 )
 
 // OpErrorKind codes
