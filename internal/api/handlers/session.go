@@ -6,8 +6,8 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
-	"party-buddy/internal/api"
 	"party-buddy/internal/api/middleware"
+	"party-buddy/internal/schemas/api"
 	"party-buddy/internal/session"
 	"party-buddy/internal/ws"
 )

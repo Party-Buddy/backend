@@ -10,7 +10,7 @@ type ServerTx interface {
 }
 
 type baseTx struct {
-	Context context.Context
+	Ctx context.Context
 }
 
 type MsgError struct {
@@ -22,9 +22,14 @@ type MsgError struct {
 func (*MsgError) isServerTx() {}
 
 type MsgJoined struct {
+	baseTx
 	PlayerId  PlayerId
 	SessionId SessionId
 	Game      *Game
 }
 
 func (*MsgJoined) isServerTx() {}
+
+func (m *MsgJoined) Context() context.Context {
+	return m.Ctx
+}

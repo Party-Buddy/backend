@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
+	"party-buddy/internal/schemas"
 	"party-buddy/internal/validate"
 	"regexp"
 	"time"
@@ -13,7 +15,7 @@ import (
 	"github.com/cohesivestack/valgo"
 )
 
-// See internal/api/schema.go for information on serialization/deserialization.
+// See internal/api/api_schema.go for information on serialization/deserialization.
 // Use [ParseMessage] for message deserialization as well as [ParseErrorToMessageError] for error handling.
 
 type MessageKind string
@@ -59,6 +61,8 @@ type BaseMessage struct {
 	Kind  *MessageKind `json:"kind"`
 	Time  *Time        `json:"time"`
 }
+
+func (*BaseMessage) isRespMessage() {}
 
 func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
@@ -141,7 +145,8 @@ func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
 	return f.Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
-		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid"))
+		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid")).
+		Is(valgo.StringP(m.Kind, "kind", "kind").EqualTo(MsgKindJoin))
 }
 
 type MessageReady struct {
@@ -367,3 +372,18 @@ func ParseErrorToMessageError(err error) error {
 		Message: "internal failure while decoding message",
 	}
 }
+
+type RespMessage interface {
+	isRespMessage()
+}
+
+type MessageJoined struct {
+	BaseMessage
+
+	RefID    *MessageId          `json:"ref-id"`
+	PlayerID uint32              `json:"player-id"`
+	Sid      uuid.UUID           `json:"session-id"`
+	Game     schemas.GameDetails `json:"game"`
+}
+
+func (*MessageJoined) isRespMessage() {}

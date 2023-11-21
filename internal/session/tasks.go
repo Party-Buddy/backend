@@ -8,6 +8,7 @@ type Task interface {
 	Name() string
 	Description() string
 	ImageId() ImageId
+	TaskDuration() time.Duration
 	isTask() // an unexported marker method to indicate a type is in fact a task
 }
 
