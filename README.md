@@ -2,15 +2,28 @@
 This repository hosts the source code of the backend.
 
 ## Running
-The easiest way to get started is via the compose.yml file.
-Setup steps for Podman:
+The easiest way to get started is via docker-compose.
 
 ```
-$ echo "my-pg-password" | podman secret create postgres-passwd
-$ podman compose -f compose.yaml up
+$ make docker
 ```
 
-(If you're stuck with Docker, just replace all uses of `podman` with `docker`.)
+If you're a fan of Podman, set the compose executable accordingly as follows:
+
+```
+$ make DOCKER_COMPOSE=podman-compose docker
+```
+
+### The default password
+The Makefile sets the DB user password to zxcvbnM1.
+If you'd like a bit more safety, write your password into the `./container/postgres-passwd.txt` file before running `make docker` for the first time.
+
+### Rebuilding
+You can rebuild the images by running
+
+```
+$ make docker-build
+```
 
 ### Ports
 The containers expose two ports:
