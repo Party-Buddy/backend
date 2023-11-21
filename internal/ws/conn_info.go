@@ -23,10 +23,10 @@ type ConnInfo struct {
 	sid session.SessionId
 
 	// servDataChan is the channel for getting event messages from server
-	servDataChan chan session.ServerTx
+	servDataChan chan<- session.ServerTx
 
 	// msgToClientChan is the channel for messages ready to send to client
-	msgToClientChan chan ws.RespMessage
+	msgToClientChan chan<- ws.RespMessage
 
 	// playerID is the player identifier inside the game
 	playerID session.PlayerId
@@ -47,21 +47,26 @@ func NewConnInfo(
 }
 
 func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
-	log.Printf("ConnInfo start serving for client: %v", c.client.UUID().String())
-	c.servDataChan = make(chan session.ServerTx)
-	c.msgToClientChan = make(chan ws.RespMessage)
+	servChan := make(chan session.ServerTx)
+	c.servDataChan = servChan
+	msgChan := make(chan ws.RespMessage)
+	c.msgToClientChan = msgChan
 	go c.runReader(ctx)
-	go c.runWriter(ctx)
+	go c.runServeToWriterConverter(ctx, msgChan, servChan)
+	go c.runWriter(ctx, msgChan)
 	log.Printf("ConnInfo start serving for client: %v", c.client.UUID().String())
 }
 
-func (c *ConnInfo) runWriter(ctx context.Context) {
+func (c *ConnInfo) runServeToWriterConverter(
+	ctx context.Context,
+	msgChan chan<- ws.RespMessage,
+	servChan <-chan session.ServerTx) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 
-		case msg := <-c.servDataChan:
+		case msg := <-servChan:
 			{
 				// TODO: ServeTx -> RespMessage
 				// TODO: send converted msg to c.msgToClientChan
@@ -77,11 +82,20 @@ func (c *ConnInfo) runWriter(ctx context.Context) {
 					refID := msgIDFromContext(joinedServ.Context())
 					joinedMsg.MsgId = &refID
 
-					c.msgToClientChan <- &joinedMsg
+					msgChan <- &joinedMsg
 				}
 			}
+		}
+	}
+}
 
-		case msg := <-c.msgToClientChan:
+func (c *ConnInfo) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case msg := <-msgChan:
 			{
 				_ = c.wsConn.WriteJSON(msg)
 			}
