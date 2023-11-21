@@ -9,36 +9,30 @@ type BaseGameInfo struct {
 	DateChanged time.Time `json:"date-changed"`
 }
 
-type SchemaTask interface {
-	isSchemaTask()
-}
-
 type BaseTask struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 
 	// Duration must be Fixed
-	Duration DurationType `json:"duration"`
+	Duration PollDuration `json:"duration"`
 
 	Type TaskType `json:"type"`
 
 	ImgURI string `json:"img-uri,omitempty"`
 
-	PollDuration DurationType `json:"poll-duration,omitempty"`
+	PollDuration PollDuration `json:"poll-duration,omitempty"`
 }
 
-func (*BaseTask) isSchemaTask() {}
-
-type DurationKindType string
+type DurationKind string
 
 const (
-	Fixed   DurationKindType = "fixed"
-	Dynamic DurationKindType = "dynamic"
+	Fixed   DurationKind = "fixed"
+	Dynamic DurationKind = "dynamic"
 )
 
-type DurationType struct {
-	Kind DurationKindType `json:"kind"`
-	Secs uint16           `json:"secs"`
+type PollDuration struct {
+	Kind DurationKind `json:"kind"`
+	Secs uint16       `json:"secs"`
 }
 
 type TaskType string
@@ -53,5 +47,5 @@ const (
 type GameDetails struct {
 	BaseGameInfo
 
-	Tasks []SchemaTask `json:"tasks"`
+	Tasks []BaseTask `json:"tasks"`
 }

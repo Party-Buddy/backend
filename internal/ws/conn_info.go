@@ -101,6 +101,7 @@ func (c *ConnInfo) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage)
 
 		case msg := <-msgChan:
 			{
+				msg.SetMsgID(ws.MessageId(c.nextMsgID()))
 				_ = c.wsConn.WriteJSON(msg)
 			}
 		}
@@ -143,7 +144,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 
 		// TODO: get state
 		// TODO: check message type availability for the state
-		ctx = context.WithValue(ctx, msgIDKey, msg.MsgID())
+		ctx = context.WithValue(ctx, msgIDKey, msg.GetMsgID())
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:

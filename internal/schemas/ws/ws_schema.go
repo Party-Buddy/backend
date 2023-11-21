@@ -62,6 +62,14 @@ type BaseMessage struct {
 	Time  *Time        `json:"time"`
 }
 
+func (m *BaseMessage) GetMsgID() MessageId {
+	return *m.MsgId
+}
+
+func (m *BaseMessage) SetMsgID(id MessageId) {
+	m.MsgId = &id
+}
+
 func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
@@ -75,7 +83,7 @@ func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 type RecvMessage interface {
 	validate.Validator
 	isRecvMessage()
-	MsgID() MessageId
+	GetMsgID() MessageId
 }
 
 type ErrorKind string
@@ -151,10 +159,6 @@ func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
 		Is(valgo.StringP(m.Kind, "kind", "kind").EqualTo(MsgKindJoin))
 }
 
-func (m *MessageJoin) MsgID() MessageId {
-	return *m.MsgId
-}
-
 type MessageReady struct {
 	BaseMessage
 
@@ -165,10 +169,6 @@ func (m *MessageReady) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 	// TODO
 	return f.New()
-}
-
-func (m *MessageReady) MsgID() MessageId {
-	return *m.MsgId
 }
 
 type MessageKick struct {
@@ -183,10 +183,6 @@ func (m *MessageKick) Validate(ctx context.Context) *valgo.Validation {
 	return f.New()
 }
 
-func (m *MessageKick) MsgID() MessageId {
-	return *m.MsgId
-}
-
 type MessageLeave struct {
 	BaseMessage
 
@@ -197,10 +193,6 @@ func (m *MessageLeave) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 	// TODO
 	return f.New()
-}
-
-func (m *MessageLeave) MsgID() MessageId {
-	return *m.MsgId
 }
 
 type MessageTaskAnswer struct {
@@ -215,10 +207,6 @@ func (m *MessageTaskAnswer) Validate(ctx context.Context) *valgo.Validation {
 	return f.New()
 }
 
-func (m *MessageTaskAnswer) MsgID() MessageId {
-	return *m.MsgId
-}
-
 type MessagePollChoose struct {
 	BaseMessage
 
@@ -229,10 +217,6 @@ func (m *MessagePollChoose) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 	// TODO
 	return f.New()
-}
-
-func (m *MessagePollChoose) MsgID() MessageId {
-	return *m.MsgId
 }
 
 func (*MessageJoin) isRecvMessage()       {}
@@ -401,6 +385,7 @@ func ParseErrorToMessageError(err error) error {
 
 type RespMessage interface {
 	isRespMessage()
+	SetMsgID(id MessageId)
 }
 
 type MessageJoined struct {

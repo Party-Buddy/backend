@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	appEnvPrefix      = "PARTY_BUDDY"
-	appEnvDbPrefix    = "PARTY_BUDDY_DB"
-	appEnvImgPrefix   = "PARTY_BUDDY_IMG"
-	appEnvOuterPrefix = "PARTY_BUDDY_OUTER"
+	appEnvPrefix         = "PARTY_BUDDY"
+	appEnvDbPrefix       = "PARTY_BUDDY_DB"
+	appEnvImgPrefix      = "PARTY_BUDDY_IMG"
+	appEnvExternalPrefix = "PARTY_BUDDY_EXTERNAL"
 )
 
 // configureEnvs maps the config values to proper environment variables
@@ -30,8 +30,8 @@ func configureEnvs() {
 
 	_ = viper.BindEnv("img.path", appEnvImgPrefix+"_PATH")
 
-	_ = viper.BindEnv("outer.host", appEnvOuterPrefix+"_HOST")
-	_ = viper.BindEnv("outer.port", appEnvOuterPrefix+"_PORT")
+	_ = viper.BindEnv("outer.host", appEnvExternalPrefix+"_HOST")
+	_ = viper.BindEnv("outer.port", appEnvExternalPrefix+"_PORT")
 }
 
 // ConfigureApp try to get configuration from ./configs/conf.[ext] file.

@@ -13,7 +13,6 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin) {
 	playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, c.servDataChan)
 	if err != nil {
 		var errMsg ws.MessageError
-		id := ws.MessageId(c.nextMsgID())
 		switch {
 		case errors.Is(err, session.ErrNoSession):
 			errMsg = utils.GenMessageError(m.MsgId, ws.ErrSessionExpired, "no such session")
@@ -28,7 +27,6 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin) {
 		default:
 			errMsg = utils.GenMessageError(m.MsgId, ws.ErrInternal, "internal error occurred")
 		}
-		errMsg.MsgId = &id
 		log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
 			c.client.UUID().String(), err.Error(), errMsg.Code)
 		c.msgToClientChan <- &errMsg
