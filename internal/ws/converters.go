@@ -80,7 +80,7 @@ func SessionGame2GameDetails(g session.Game) (schemas.GameDetails, error) {
 
 func MsgJoined2MessageJoined(m session.MsgJoined) (ws.MessageJoined, error) {
 	msg := ws.MessageJoined{}
-	msg.Kind = &ws.MsgKindJoined
+	msg.BaseMessage = genBaseMessage(&ws.MsgKindJoined)
 	msg.Sid = m.SessionId.UUID()
 	msg.PlayerID = m.PlayerId.UUID().ID()
 	details, err := SessionGame2GameDetails(*m.Game)

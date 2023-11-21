@@ -123,7 +123,70 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 			ctx = context.WithValue(ctx, joinKey, *joinMsg.MsgId)
 			playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *joinMsg.Nickname, c.servDataChan)
 			if err != nil {
-				// TODO: handle errors
+				switch {
+				case errors.Is(err, session.ErrNoSession):
+					{
+						errMsg := ws.MessageError{
+							BaseMessage: genBaseMessage(&ws.MsgKindError),
+							Error: ws.Error{
+								RefId:   joinMsg.MsgId,
+								Code:    ws.ErrInternal, // TODO: maybe new error?
+								Message: err.Error(),
+							},
+						}
+						c.msgToClientChan <- &errMsg
+					}
+				case errors.Is(err, session.ErrGameInProgress):
+					{
+						errMsg := ws.MessageError{
+							BaseMessage: genBaseMessage(&ws.MsgKindError),
+							Error: ws.Error{
+								RefId:   joinMsg.MsgId,
+								Code:    ws.ErrInternal,
+								Message: err.Error(),
+							},
+						}
+						c.msgToClientChan <- &errMsg
+					}
+				case errors.Is(err, session.ErrClientBanned):
+					{
+						errMsg := ws.MessageError{
+							BaseMessage: genBaseMessage(&ws.MsgKindError),
+							Error: ws.Error{
+								RefId:   joinMsg.MsgId,
+								Code:    ws.ErrInternal, // TODO: maybe new error?
+								Message: err.Error(),
+							},
+						}
+						c.msgToClientChan <- &errMsg
+					}
+				case errors.Is(err, session.ErrNicknameUsed):
+					{
+						errMsg := ws.MessageError{
+							BaseMessage: genBaseMessage(&ws.MsgKindError),
+							Error: ws.Error{
+								RefId:   joinMsg.MsgId,
+								Code:    ws.ErrNicknameUsed,
+								Message: err.Error(),
+							},
+						}
+						c.msgToClientChan <- &errMsg
+					}
+				case errors.Is(err, session.ErrLobbyFull):
+					{
+						errMsg := ws.MessageError{
+							BaseMessage: genBaseMessage(&ws.MsgKindError),
+							Error: ws.Error{
+								RefId:   joinMsg.MsgId,
+								Code:    ws.ErrLobbyFull,
+								Message: err.Error(),
+							},
+						}
+						c.msgToClientChan <- &errMsg
+					}
+				}
+
+				continue
 			}
 			c.playerID = playerID
 		}
@@ -134,4 +197,10 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 func (c *ConnInfo) Dispose() {
 	close(c.servDataChan)
 	_ = c.wsConn.Close()
+}
+
+func genBaseMessage(kind *ws.MessageKind) ws.BaseMessage {
+	// TODO: set Time
+	newMsgID := ws.GenerateNewMessageID()
+	return ws.BaseMessage{Kind: kind, MsgId: &newMsgID}
 }
