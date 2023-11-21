@@ -23,6 +23,8 @@ type BaseTask struct {
 	Type TaskType `json:"type"`
 
 	ImgURI string `json:"img-uri,omitempty"`
+
+	PollDuration DurationType `json:"poll-duration,omitempty"`
 }
 
 func (*BaseTask) isSchemaTask() {}
@@ -47,14 +49,6 @@ const (
 	CheckedText TaskType = "checked-text"
 	Choice      TaskType = "choice"
 )
-
-type PollTask struct {
-	BaseTask
-
-	PollDuration DurationType `json:"poll-duration,omitempty"`
-}
-
-func (*PollTask) isSchemaTask() {}
 
 type GameDetails struct {
 	BaseGameInfo

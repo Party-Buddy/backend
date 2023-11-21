@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func SessionPollDuration2PollDuration(pd session.PollDurationer) schemas.DurationType {
+func ToPollDuration(pd session.PollDurationer) schemas.DurationType {
 	switch t := pd.(type) {
 	case session.FixedPollDuration:
 		return schemas.DurationType{Kind: schemas.Fixed, Secs: uint16(time.Duration(t).Seconds())}
@@ -20,7 +20,7 @@ func SessionPollDuration2PollDuration(pd session.PollDurationer) schemas.Duratio
 	panic(errors.New("bad poll duration from server"))
 }
 
-func SessionTask2SchemaTask(t session.Task) schemas.SchemaTask {
+func ToSchemaTask(t session.Task) schemas.SchemaTask {
 	task := schemas.BaseTask{}
 	task.Name = t.Name()
 	task.Description = t.Description()
@@ -30,18 +30,14 @@ func SessionTask2SchemaTask(t session.Task) schemas.SchemaTask {
 	case *session.PhotoTask:
 		{
 			task.Type = schemas.Photo
-			pollTask := schemas.PollTask{}
-			pollTask.BaseTask = task
-			pollTask.PollDuration = SessionPollDuration2PollDuration(t.PollDuration)
-			return &pollTask
+			task.PollDuration = ToPollDuration(t.PollDuration)
+			return &task
 		}
 	case *session.TextTask:
 		{
 			task.Type = schemas.Text
-			pollTask := schemas.PollTask{}
-			pollTask.BaseTask = task
-			pollTask.PollDuration = SessionPollDuration2PollDuration(t.PollDuration)
-			return &pollTask
+			task.PollDuration = ToPollDuration(t.PollDuration)
+			return &task
 		}
 	case *session.CheckedTextTask:
 		{
@@ -58,25 +54,25 @@ func SessionTask2SchemaTask(t session.Task) schemas.SchemaTask {
 	}
 }
 
-func SessionGame2GameDetails(g session.Game) schemas.GameDetails {
+func ToGameDetails(g session.Game) schemas.GameDetails {
 	game := schemas.GameDetails{}
 	game.Name = g.Name
 	game.Description = g.Description
 	game.DateChanged = g.DateChanged
 	tasks := make([]schemas.SchemaTask, len(g.Tasks))
 	for i := 0; i < len(g.Tasks); i++ {
-		tasks = append(tasks, SessionTask2SchemaTask(g.Tasks[i]))
+		tasks = append(tasks, ToSchemaTask(g.Tasks[i]))
 	}
 	game.Tasks = tasks
 	game.ImgURI = configuration.GenImgURI(g.ImageId.UUID)
 	return game
 }
 
-func MsgJoined2MessageJoined(m session.MsgJoined) ws.MessageJoined {
+func ToMessageJoined(m session.MsgJoined) ws.MessageJoined {
 	msg := ws.MessageJoined{}
 	msg.BaseMessage = genBaseMessage(&ws.MsgKindJoined)
 	msg.Sid = m.SessionId.UUID()
 	msg.PlayerID = m.PlayerId.UUID().ID()
-	msg.Game = SessionGame2GameDetails(*m.Game)
+	msg.Game = ToGameDetails(*m.Game)
 	return msg
 }

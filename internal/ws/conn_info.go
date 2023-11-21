@@ -73,7 +73,7 @@ func (c *ConnInfo) runServeToWriterConverter(
 				switch msg.(type) {
 				case *session.MsgJoined:
 					joinedServ := msg.(*session.MsgJoined)
-					joinedMsg := MsgJoined2MessageJoined(*joinedServ)
+					joinedMsg := ToMessageJoined(*joinedServ)
 					newMsgId := ws.GenerateNewMessageID()
 					joinedMsg.MsgId = &newMsgId
 					refID := msgIDFromContext(joinedServ.Context())
