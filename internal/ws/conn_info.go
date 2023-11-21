@@ -73,10 +73,7 @@ func (c *ConnInfo) runServeToWriterConverter(
 				switch msg.(type) {
 				case *session.MsgJoined:
 					joinedServ := msg.(*session.MsgJoined)
-					joinedMsg, err := MsgJoined2MessageJoined(*joinedServ)
-					if err != nil {
-						// TODO: handle error (means that something went wrong during converting)
-					}
+					joinedMsg := MsgJoined2MessageJoined(*joinedServ)
 					newMsgId := ws.GenerateNewMessageID()
 					joinedMsg.MsgId = &newMsgId
 					refID := msgIDFromContext(joinedServ.Context())
