@@ -10,6 +10,7 @@ import (
 	"party-buddy/internal/schemas"
 	"party-buddy/internal/validate"
 	"regexp"
+	"sync/atomic"
 	"time"
 
 	"github.com/cohesivestack/valgo"
@@ -46,6 +47,12 @@ type MessageId uint32
 
 func (id MessageId) String() string {
 	return fmt.Sprint(uint32(id))
+}
+
+var val = atomic.Uint32{}
+
+func GenerateNewMessageID() MessageId {
+	return MessageId(val.Add(1))
 }
 
 // A Time wraps a time.Time to provide a session protocol-compliant JSON encoding.

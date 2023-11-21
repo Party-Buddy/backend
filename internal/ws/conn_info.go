@@ -68,8 +68,13 @@ func (c *ConnInfo) runWriter(ctx context.Context) {
 					if err != nil {
 						// TODO: handle error
 					}
+					newMsgId := ws.GenerateNewMessageID()
+					joinedMsg.MsgId = &newMsgId
+					refID := joinMsgIDFromContext(joinedServ.Context())
+					joinedMsg.MsgId = &refID
+
+					// TODO: set time
 					c.msgToClientChan <- &joinedMsg
-					// TODO: set msg-id, time, ref-id
 				}
 			}
 
@@ -79,6 +84,14 @@ func (c *ConnInfo) runWriter(ctx context.Context) {
 			}
 		}
 	}
+}
+
+type joinKeyType int
+
+var joinKey joinKeyType
+
+func joinMsgIDFromContext(ctx context.Context) ws.MessageId {
+	return ctx.Value(joinKey).(ws.MessageId)
 }
 
 func (c *ConnInfo) runReader(ctx context.Context) {
@@ -95,7 +108,9 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 			errors.As(err, &errDto)
 			rspMessage := ws.MessageError{}
 			rspMessage.Error = *errDto
-			// TODO: rspMessage.BaseMessage
+			newMsgID := ws.GenerateNewMessageID()
+			rspMessage.BaseMessage = ws.BaseMessage{Kind: &ws.MsgKindError, MsgId: &newMsgID}
+			// TODO: set time
 			c.msgToClientChan <- &rspMessage
 			continue
 		}
@@ -105,6 +120,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 		switch msg.(type) {
 		case *ws.MessageJoin:
 			joinMsg := msg.(*ws.MessageJoin)
+			ctx = context.WithValue(ctx, joinKey, *joinMsg.MsgId)
 			playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *joinMsg.Nickname, c.servDataChan)
 			if err != nil {
 				// TODO: handle errors
