@@ -2,11 +2,11 @@
 
 # build project
 build:
-	go build party-buddy
+	go build -v party-buddy
 
 # build and run project
-run:
-	go build party-buddy && ./party-buddy
+run: build
+	./party-buddy
 
 # run tests recursively with data race detection
 test:
