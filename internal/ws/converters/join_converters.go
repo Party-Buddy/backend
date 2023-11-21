@@ -1,4 +1,4 @@
-package ws
+package converters
 
 import (
 	"errors"
@@ -6,6 +6,7 @@ import (
 	"party-buddy/internal/schemas"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
+	ws2 "party-buddy/internal/ws"
 	"time"
 )
 
@@ -70,7 +71,7 @@ func ToGameDetails(g session.Game) schemas.GameDetails {
 
 func ToMessageJoined(m session.MsgJoined) ws.MessageJoined {
 	msg := ws.MessageJoined{}
-	msg.BaseMessage = genBaseMessage(&ws.MsgKindJoined)
+	msg.BaseMessage = ws2.genBaseMessage(&ws.MsgKindJoined)
 	msg.Sid = m.SessionId.UUID()
 	msg.PlayerID = m.PlayerId.UUID().ID()
 	msg.Game = ToGameDetails(*m.Game)

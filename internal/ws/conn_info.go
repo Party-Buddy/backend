@@ -7,6 +7,7 @@ import (
 	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
+	"party-buddy/internal/ws/converters"
 	"time"
 )
 
@@ -70,13 +71,10 @@ func (c *ConnInfo) runServeToWriterConverter(
 			{
 				// TODO: ServeTx -> RespMessage
 				// TODO: send converted msg to c.msgToClientChan
-				switch msg.(type) {
+				switch m := msg.(type) {
 				case *session.MsgJoined:
-					joinedServ := msg.(*session.MsgJoined)
-					joinedMsg := ToMessageJoined(*joinedServ)
-					newMsgId := ws.GenerateNewMessageID()
-					joinedMsg.MsgId = &newMsgId
-					refID := msgIDFromContext(joinedServ.Context())
+					joinedMsg := converters.ToMessageJoined(*m)
+					refID := msgIDFromContext(m.Context())
 					joinedMsg.MsgId = &refID
 
 					msgChan <- &joinedMsg
@@ -113,8 +111,9 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
 			log.Printf("ConnInfo client: %v err: %v", c.client.UUID().String(), err.Error())
-			// TODO: ?
-			continue
+
+			// TODO: close connection
+			return
 		}
 		msg, err := ws.ParseMessage(ctx, bytes)
 		if err != nil {
@@ -128,39 +127,39 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 			log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
 				c.client.UUID().String(), errDto.Message, errDto.Code)
 			c.msgToClientChan <- &rspMessage
-			continue
+
+			// TODO: close connections
+			return
 		}
 
 		// TODO: get state
 		// TODO: check message type availability for the state
 		ctx = context.WithValue(ctx, msgIDKey, msg.MsgID())
 
-		switch msg.(type) {
+		switch m := msg.(type) {
 		case *ws.MessageJoin:
-			joinMsg := msg.(*ws.MessageJoin)
-			playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *joinMsg.Nickname, c.servDataChan)
+			playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, c.servDataChan)
 			if err != nil {
 				var errMsg ws.MessageError
 				switch {
 				case errors.Is(err, session.ErrNoSession):
-					errMsg = genMessageError(joinMsg.MsgId, ws.ErrSessionExpired, "no such session")
+					errMsg = genMessageError(m.MsgId, ws.ErrSessionExpired, "no such session")
 				case errors.Is(err, session.ErrGameInProgress):
-					errMsg = genMessageError(joinMsg.MsgId, ws.ErrUnknownSession, "game in progress now, no clients accepted")
+					errMsg = genMessageError(m.MsgId, ws.ErrUnknownSession, "game in progress now, no clients accepted")
 				case errors.Is(err, session.ErrClientBanned):
-					errMsg = genMessageError(joinMsg.MsgId, ws.ErrUnknownSession, "unknown session in request")
+					errMsg = genMessageError(m.MsgId, ws.ErrUnknownSession, "unknown session in request")
 				case errors.Is(err, session.ErrNicknameUsed):
-					errMsg = genMessageError(joinMsg.MsgId, ws.ErrNicknameUsed, "nickname is already used")
+					errMsg = genMessageError(m.MsgId, ws.ErrNicknameUsed, "nickname is already used")
 				case errors.Is(err, session.ErrLobbyFull):
-					errMsg = genMessageError(joinMsg.MsgId, ws.ErrLobbyFull, "lobby is full")
+					errMsg = genMessageError(m.MsgId, ws.ErrLobbyFull, "lobby is full")
 				default:
-					errMsg = genMessageError(joinMsg.MsgId, ws.ErrInternal, "internal error occurred")
+					errMsg = genMessageError(m.MsgId, ws.ErrInternal, "internal error occurred")
 				}
 				log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
 					c.client.UUID().String(), err.Error(), errMsg.Code)
 				c.msgToClientChan <- &errMsg
-				log.Printf("ConnInfo client: %v parse message err: %v (code _)",
-					c.client.UUID().String(), err.Error())
-				continue
+				// TODO: close connections
+				return
 			}
 			c.playerID = playerID
 		}
@@ -170,6 +169,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 
 func (c *ConnInfo) Dispose() {
 	close(c.servDataChan)
+	close(c.msgToClientChan)
 	_ = c.wsConn.Close()
 }
 
