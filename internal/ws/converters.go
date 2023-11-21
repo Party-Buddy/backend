@@ -2,6 +2,7 @@ package ws
 
 import (
 	"errors"
+	"party-buddy/internal/configuration"
 	"party-buddy/internal/schemas"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
@@ -23,7 +24,7 @@ func SessionTask2SchemaTask(t session.Task) (schemas.SchemaTask, error) {
 	task := schemas.BaseTask{}
 	task.Name = t.Name()
 	task.Description = t.Description()
-	task.ImgURI = t.ImageId().String()
+	task.ImgURI = configuration.GenImgURI(t.ImageId().UUID)
 	task.Duration = schemas.DurationType{Kind: schemas.Fixed, Secs: uint16(t.TaskDuration().Seconds())}
 	switch t.(type) {
 	case *session.PhotoTask:
@@ -74,7 +75,7 @@ func SessionGame2GameDetails(g session.Game) (schemas.GameDetails, error) {
 		tasks = append(tasks, t)
 	}
 	game.Tasks = tasks
-	game.ImgURI = g.ImageId.String() // TODO: convert to URI?
+	game.ImgURI = configuration.GenImgURI(g.ImageId.UUID)
 	return game, nil
 }
 

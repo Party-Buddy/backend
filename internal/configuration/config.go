@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	"fmt"
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"log"
 	"os"
@@ -8,9 +10,10 @@ import (
 )
 
 const (
-	appEnvPrefix    = "PARTY_BUDDY"
-	appEnvDbPrefix  = "PARTY_BUDDY_DB"
-	appEnvImgPrefix = "PARTY_BUDDY_IMG"
+	appEnvPrefix      = "PARTY_BUDDY"
+	appEnvDbPrefix    = "PARTY_BUDDY_DB"
+	appEnvImgPrefix   = "PARTY_BUDDY_IMG"
+	appEnvOuterPrefix = "PARTY_BUDDY_OUTER"
 )
 
 // configureEnvs maps the config values to proper environment variables
@@ -26,6 +29,9 @@ func configureEnvs() {
 	_ = viper.BindEnv("db.password", appEnvDbPrefix+"_PASSWORD")
 
 	_ = viper.BindEnv("img.path", appEnvImgPrefix+"_PATH")
+
+	_ = viper.BindEnv("outer.host", appEnvOuterPrefix+"_HOST")
+	_ = viper.BindEnv("outer.port", appEnvOuterPrefix+"_PORT")
 }
 
 // ConfigureApp try to get configuration from ./configs/conf.[ext] file.
@@ -67,4 +73,17 @@ func GetImgDirectory() string {
 		imgPath += string(os.PathSeparator)
 	}
 	return imgPath
+}
+
+func GenImgURI(imgID uuid.UUID) string {
+	host := viper.GetString("outer.host")
+	if host == "" {
+		host = viper.GetString("server.host")
+	}
+	port := viper.GetString("outer.port")
+	if port == "" {
+		port = viper.GetString("server.port")
+	}
+
+	return fmt.Sprintf("http://%v:%v/api/v1/images/%v", host, port, imgID.String())
 }
