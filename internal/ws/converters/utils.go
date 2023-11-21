@@ -1,4 +1,4 @@
-package ws
+package converters
 
 import (
 	"party-buddy/internal/schemas/ws"

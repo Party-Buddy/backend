@@ -129,7 +129,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 			var errDto *ws.Error
 			errors.As(err, &errDto)
 			rspMessage := ws.MessageError{
-				BaseMessage: GenBaseMessage(&ws.MsgKindError),
+				BaseMessage: converters.GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
 			}
 			log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",

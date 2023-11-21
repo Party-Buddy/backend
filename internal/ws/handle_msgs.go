@@ -6,6 +6,7 @@ import (
 	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
+	"party-buddy/internal/ws/converters"
 )
 
 func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin) {
@@ -15,17 +16,17 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin) {
 		id := ws.MessageId(c.nextMsgID())
 		switch {
 		case errors.Is(err, session.ErrNoSession):
-			errMsg = GenMessageError(m.MsgId, ws.ErrSessionExpired, "no such session")
+			errMsg = converters.GenMessageError(m.MsgId, ws.ErrSessionExpired, "no such session")
 		case errors.Is(err, session.ErrGameInProgress):
-			errMsg = GenMessageError(m.MsgId, ws.ErrUnknownSession, "game in progress now, no clients accepted")
+			errMsg = converters.GenMessageError(m.MsgId, ws.ErrUnknownSession, "game in progress now, no clients accepted")
 		case errors.Is(err, session.ErrClientBanned):
-			errMsg = GenMessageError(m.MsgId, ws.ErrUnknownSession, "unknown session in request")
+			errMsg = converters.GenMessageError(m.MsgId, ws.ErrUnknownSession, "unknown session in request")
 		case errors.Is(err, session.ErrNicknameUsed):
-			errMsg = GenMessageError(m.MsgId, ws.ErrNicknameUsed, "nickname is already used")
+			errMsg = converters.GenMessageError(m.MsgId, ws.ErrNicknameUsed, "nickname is already used")
 		case errors.Is(err, session.ErrLobbyFull):
-			errMsg = GenMessageError(m.MsgId, ws.ErrLobbyFull, "lobby is full")
+			errMsg = converters.GenMessageError(m.MsgId, ws.ErrLobbyFull, "lobby is full")
 		default:
-			errMsg = GenMessageError(m.MsgId, ws.ErrInternal, "internal error occurred")
+			errMsg = converters.GenMessageError(m.MsgId, ws.ErrInternal, "internal error occurred")
 		}
 		errMsg.MsgId = &id
 		log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
