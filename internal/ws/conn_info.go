@@ -10,6 +10,7 @@ import (
 	"party-buddy/internal/ws/converters"
 	"party-buddy/internal/ws/utils"
 	"sync/atomic"
+	"time"
 )
 
 type ConnInfo struct {
@@ -36,7 +37,7 @@ type ConnInfo struct {
 	msgID atomic.Uint32
 
 	// stopRequested indicates that wsConn and channels should be closed
-	stopRequested bool
+	stopRequested atomic.Bool
 
 	// cancel is a function to call for cancelling runWriter, runServeToWriterConverter
 	cancel context.CancelFunc
@@ -57,11 +58,12 @@ func NewConnInfo(
 		client:        clientId,
 		sid:           sid,
 		msgID:         atomic.Uint32{},
-		stopRequested: false,
+		stopRequested: atomic.Bool{},
 	}
 }
 
 func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
+	c.stopRequested.Store(false)
 	servChan := make(chan session.ServerTx)
 	msgChan := make(chan ws.RespMessage)
 	c.msgToClientChan = msgChan
@@ -77,17 +79,17 @@ func (c *ConnInfo) runServeToWriterConverter(
 	ctx context.Context,
 	msgChan chan<- ws.RespMessage,
 	servChan <-chan session.ServerTx) {
-	for !c.stopRequested {
+	defer close(msgChan)
+
+	for !c.stopRequested.Load() {
 		select {
 		case <-ctx.Done():
-			close(msgChan)
 			return
 
 		case msg := <-servChan:
 			{
 				if msg == nil {
-					c.stopRequested = true
-					close(msgChan)
+					c.stopRequested.Store(true)
 					return
 				}
 				// TODO: ServeTx -> RespMessage
@@ -99,13 +101,7 @@ func (c *ConnInfo) runServeToWriterConverter(
 					joinedMsg.RefID = &refID
 
 					msgChan <- &joinedMsg
-
-				case *session.MsgDisconnect:
-					c.stopRequested = true
-					close(msgChan)
-					return
 				}
-				// TODO: code in session.MsgDisconnect also for MsgKick and MsgGameEnd
 
 			}
 		}
@@ -113,16 +109,15 @@ func (c *ConnInfo) runServeToWriterConverter(
 }
 
 func (c *ConnInfo) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
-	for !c.stopRequested {
+	defer properWSClose(c.wsConn)
+	for !c.stopRequested.Load() {
 		select {
 		case <-ctx.Done():
-			_ = c.wsConn.Close()
 			return
 
 		case msg := <-msgChan:
 			{
 				if msg == nil {
-					_ = c.wsConn.Close()
 					c.cancel()
 					return
 				}
@@ -130,8 +125,7 @@ func (c *ConnInfo) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage)
 				msg.SetMsgID(ws.MessageId(c.nextMsgID()))
 				_ = c.wsConn.WriteJSON(msg)
 
-				if c.stopRequested {
-					_ = c.wsConn.Close()
+				if c.stopRequested.Load() {
 					c.cancel()
 					return
 				}
@@ -149,13 +143,14 @@ func msgIDFromContext(ctx context.Context) ws.MessageId {
 }
 
 func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
-	for !c.stopRequested {
+	defer c.wsConn.Close()
+	for !c.stopRequested.Load() {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
 			log.Printf("ConnInfo client: %v err: %v", c.client.UUID().String(), err.Error())
 
-			if !c.stopRequested {
-				c.Dispose(ctx)
+			if !c.stopRequested.Load() {
+				c.dispose(ctx)
 			}
 			return
 		}
@@ -172,7 +167,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 				c.client.UUID().String(), errDto.Message, errDto.Code)
 			c.msgToClientChan <- &rspMessage
 
-			c.Dispose(ctx)
+			c.dispose(ctx)
 			return
 		}
 
@@ -188,15 +183,24 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 	}
 }
 
-// Dispose is used for closing ws connection and related channels.
-// There 2 possible cases to call Dispose:
-//  1. reader call Dispose and the client had NOT joined the session (so it has no PlayerId)
-//  2. reader call Dispose and client had joined the session
+func properWSClose(wsConn *websocket.Conn) {
+	timeout := 10 * time.Second
+	_ = wsConn.SetWriteDeadline(time.Now().Add(timeout))
+	_ = wsConn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	time.Sleep(timeout)
+	_ = wsConn.Close()
+
+}
+
+// dispose is used for closing ws connection and related channels.
+// There 2 possible cases to call dispose:
+//  1. reader call dispose and the client had NOT joined the session (so it has no PlayerId)
+//  2. reader call dispose and client had joined the session
 //
 // Disconnecting because of server initiative is handled in runServeToWriterConverter
-func (c *ConnInfo) Dispose(ctx context.Context) {
+func (c *ConnInfo) dispose(ctx context.Context) {
 	log.Printf("ConnInfo client: %v disconnecting", c.client.UUID().String())
-	c.stopRequested = true
+	c.stopRequested.Store(true)
 	if c.playerID != nil { // playerID indicates that client has already joined
 		// Here we are asking manager to disconnect us
 		log.Printf("ConnInfo client: %v player: %v request disconnection from manager",

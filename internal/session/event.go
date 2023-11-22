@@ -33,12 +33,3 @@ type MsgJoined struct {
 }
 
 func (*MsgJoined) isServerTx() {}
-
-// MsgDisconnect is used to notify client that it should stop
-// all info about reason of disconnecting should with another ServerTx
-// BEFORE MsgDisconnect
-type MsgDisconnect struct {
-	baseTx
-}
-
-func (*MsgDisconnect) isServerTx() {}
