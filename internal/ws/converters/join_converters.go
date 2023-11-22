@@ -21,8 +21,8 @@ func ToPollDuration(pd session.PollDurationer) schemas.PollDuration {
 	panic(errors.New("bad poll duration from server"))
 }
 
-func ToSchemaTask(t session.Task) schemas.BaseTask {
-	task := schemas.BaseTask{}
+func ToSchemaTask(t session.Task) schemas.BaseTaskWithImg {
+	task := schemas.BaseTaskWithImg{}
 	task.Name = t.Name()
 	task.Description = t.Description()
 	task.ImgURI = configuration.GenImgURI(t.ImageId().UUID)
@@ -60,7 +60,7 @@ func ToGameDetails(g session.Game) schemas.GameDetails {
 	game.Name = g.Name
 	game.Description = g.Description
 	game.DateChanged = g.DateChanged
-	tasks := make([]schemas.BaseTask, len(g.Tasks))
+	tasks := make([]schemas.BaseTaskWithImg, len(g.Tasks))
 	for i := 0; i < len(g.Tasks); i++ {
 		tasks = append(tasks, ToSchemaTask(g.Tasks[i]))
 	}

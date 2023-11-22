@@ -92,3 +92,13 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	info.StartReadAndWriteConn(r.Context())
 	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
 }
+
+type SessionCreateHandler struct{}
+
+func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	/*encoder := json.NewEncoder(w)
+
+	manager := middleware.ManagerFromContext(r.Context())
+	authInfo := middleware.AuthInfoFromContext(r.Context())
+	tx := middleware.TxFromContext()*/
+}
