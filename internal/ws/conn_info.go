@@ -85,6 +85,11 @@ func (c *ConnInfo) runServeToWriterConverter(
 
 		case msg := <-servChan:
 			{
+				if msg == nil {
+					c.stopRequested = true
+					close(msgChan)
+					return
+				}
 				// TODO: ServeTx -> RespMessage
 				// TODO: send converted msg to c.msgToClientChan
 				switch m := msg.(type) {
