@@ -92,12 +92,12 @@ func (c *ConnInfo) runServeToWriterConverter(
 
 					msgChan <- &joinedMsg
 
-					// case *session.MsgDisconnect:
-					//	c.StopRequested = true
-					//	msgChan <- convert(m)
-					//  close(msgChan)
-					//  return
+				case *session.MsgDisconnect:
+					c.stopRequested = true
+					close(msgChan)
+					return
 				}
+				// TODO: code in session.MsgDisconnect also for MsgKick and MsgGameEnd
 
 			}
 		}
@@ -141,7 +141,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 			log.Printf("ConnInfo client: %v err: %v", c.client.UUID().String(), err.Error())
 
 			if !c.stopRequested {
-				c.Dispose()
+				c.Dispose(ctx)
 			}
 			return
 		}
@@ -158,7 +158,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 				c.client.UUID().String(), errDto.Message, errDto.Code)
 			c.msgToClientChan <- &rspMessage
 
-			c.Dispose()
+			c.Dispose(ctx)
 			return
 		}
 
@@ -174,14 +174,22 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 	}
 }
 
-func (c *ConnInfo) Dispose() {
+// Dispose is used for closing ws connection and related channels.
+// There 2 possible cases to call Dispose:
+//  1. reader call Dispose and the client had NOT joined the session (so it has no PlayerId)
+//  2. reader call Dispose and client had joined the session
+//
+// Disconnecting because of server initiative is handled in runServeToWriterConverter
+func (c *ConnInfo) Dispose(ctx context.Context) {
 	log.Printf("ConnInfo client: %v disconnecting", c.client.UUID().String())
 	c.stopRequested = true
 	if c.playerID != nil { // playerID indicates that client has already joined
-		// so we are asking manager to disconnect us
-		// TODO: ask manager to disconnect self because player has already joined the session
-		// c.manager.RequestDisconnect(ctx, c.sid, c.clientID, c.playerID)
+		// Here we are asking manager to disconnect us
+		log.Printf("ConnInfo client: %v player: %v request disconnection from manager",
+			c.client.UUID().String(), c.playerID.UUID().ID())
+		c.manager.RequestDisconnect(ctx, c.sid, c.client, *c.playerID)
 	} else {
+		// Manager knows nothing about client, so we just stop threads
 		c.cancel()
 	}
 }

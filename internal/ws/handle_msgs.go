@@ -31,7 +31,7 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 			c.client.UUID().String(), err.Error(), errMsg.Code)
 		c.msgToClientChan <- &errMsg
 
-		c.Dispose()
+		c.Dispose(ctx)
 		return
 	}
 	c.playerID = &playerID

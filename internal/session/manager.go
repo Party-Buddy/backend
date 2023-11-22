@@ -326,3 +326,20 @@ func (m *Manager) SessionExists(sid SessionId) (ok bool) {
 	})
 	return
 }
+
+func (m *Manager) RequestDisconnect(ctx context.Context, sid SessionId, clientID ClientId, playerID PlayerId) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		player, err := s.PlayerById(sid, playerID)
+		if err != nil {
+			// TODO: maybe panic?
+			return
+		}
+		msg := MsgDisconnect{baseTx{Ctx: ctx}}
+		m.sendToPlayer(player.Tx, &msg)
+
+		_, ok := s.removePlayer(sid, clientID)
+		if ok {
+			// TODO: notify other players that the player disconnected
+		}
+	})
+}
