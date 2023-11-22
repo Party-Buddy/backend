@@ -121,6 +121,12 @@ func (c *ConnInfo) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage)
 
 		case msg := <-msgChan:
 			{
+				if msg == nil {
+					_ = c.wsConn.Close()
+					c.cancel()
+					return
+				}
+
 				msg.SetMsgID(ws.MessageId(c.nextMsgID()))
 				_ = c.wsConn.WriteJSON(msg)
 
