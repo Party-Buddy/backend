@@ -2,9 +2,10 @@ name: party-buddy
 
 services:
   postgres:
+    image: ghcr.io/party-buddy/backend/backend-test-db:dev
     build:
       context: .
-      dockerfile: Dockerfile.db
+      dockerfile: db.Dockerfile
 
     ports:
       - "9601:5432"
@@ -22,9 +23,11 @@ services:
       - "db:/var/lib/postgres/data"
 
   backend:
+    image: ghcr.io/party-buddy/backend/backend:dev
+
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: backend.Dockerfile
 
     depends_on:
       postgres:
