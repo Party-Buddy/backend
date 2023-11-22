@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
+	"party-buddy/internal/schemas"
 	"party-buddy/internal/validate"
 	"regexp"
 	"time"
@@ -13,7 +15,7 @@ import (
 	"github.com/cohesivestack/valgo"
 )
 
-// See internal/api/schema.go for information on serialization/deserialization.
+// See internal/api/api_schema.go for information on serialization/deserialization.
 // Use [ParseMessage] for message deserialization as well as [ParseErrorToMessageError] for error handling.
 
 type MessageKind string
@@ -60,6 +62,14 @@ type BaseMessage struct {
 	Time  *Time        `json:"time"`
 }
 
+func (m *BaseMessage) GetMsgID() MessageId {
+	return *m.MsgId
+}
+
+func (m *BaseMessage) SetMsgID(id MessageId) {
+	m.MsgId = &id
+}
+
 func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
@@ -73,6 +83,7 @@ func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 type RecvMessage interface {
 	validate.Validator
 	isRecvMessage()
+	GetMsgID() MessageId
 }
 
 type ErrorKind string
@@ -93,6 +104,7 @@ var (
 	ErrSessionExpired ErrorKind = "session-expired"
 	ErrLobbyFull      ErrorKind = "lobby-full"
 	ErrNicknameUsed   ErrorKind = "nickname-used"
+	ErrUnknownSession ErrorKind = "unknown-session"
 )
 
 // OpErrorKind codes
@@ -129,6 +141,8 @@ type MessageError struct {
 	Error
 }
 
+func (*MessageError) isRespMessage() {}
+
 type MessageJoin struct {
 	BaseMessage
 
@@ -141,7 +155,8 @@ func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
 	return f.Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
-		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid"))
+		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid")).
+		Is(valgo.StringP(m.Kind, "kind", "kind").EqualTo(MsgKindJoin))
 }
 
 type MessageReady struct {
@@ -367,3 +382,19 @@ func ParseErrorToMessageError(err error) error {
 		Message: "internal failure while decoding message",
 	}
 }
+
+type RespMessage interface {
+	isRespMessage()
+	SetMsgID(id MessageId)
+}
+
+type MessageJoined struct {
+	BaseMessage
+
+	RefID    *MessageId          `json:"ref-id"`
+	PlayerID uint32              `json:"player-id"`
+	Sid      uuid.UUID           `json:"session-id"`
+	Game     schemas.GameDetails `json:"game"`
+}
+
+func (*MessageJoined) isRespMessage() {}

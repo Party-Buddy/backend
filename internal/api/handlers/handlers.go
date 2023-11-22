@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"party-buddy/internal/api"
+	"party-buddy/internal/schemas/api"
 )
 
 func IndexHandler(w http.ResponseWriter, r *http.Request) {

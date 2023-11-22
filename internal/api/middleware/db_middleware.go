@@ -6,8 +6,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"log"
 	"net/http"
-	"party-buddy/internal/api"
 	"party-buddy/internal/db"
+	"party-buddy/internal/schemas/api"
 )
 
 type txKeyType int

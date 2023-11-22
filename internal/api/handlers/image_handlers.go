@@ -7,9 +7,9 @@ import (
 	"image/jpeg"
 	"log"
 	"net/http"
-	"party-buddy/internal/api"
 	"party-buddy/internal/api/middleware"
 	"party-buddy/internal/db"
+	"party-buddy/internal/schemas/api"
 )
 
 type GetImageHandler struct{}
