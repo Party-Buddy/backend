@@ -2,11 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"io"
 	"log"
 	"net/http"
 	"party-buddy/internal/api/middleware"
+	"party-buddy/internal/schemas"
 	"party-buddy/internal/schemas/api"
 	"party-buddy/internal/session"
 	"party-buddy/internal/ws"
@@ -96,9 +99,60 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 type SessionCreateHandler struct{}
 
 func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	/*encoder := json.NewEncoder(w)
+	encoder := json.NewEncoder(w)
 
-	manager := middleware.ManagerFromContext(r.Context())
-	authInfo := middleware.AuthInfoFromContext(r.Context())
-	tx := middleware.TxFromContext()*/
+	bytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		dto := api.Errorf(api.ErrInternal, "failed to read request body")
+		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		return
+	}
+
+	var baseReq schemas.BaseCreateSessionRequest
+
+	//var pubReq schemas.PublicCreateSessionRequest
+	err = api.Parse(r.Context(), &baseReq, bytes)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		var dto *api.Error
+		errors.As(err, &dto)
+		_ = encoder.Encode(dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		return
+	}
+
+	switch baseReq.GameType {
+	case schemas.Public:
+		var publicReq schemas.PublicCreateSessionRequest
+		err = api.Parse(r.Context(), &publicReq, bytes)
+		if err == nil {
+			handlePublicReq(w, r, publicReq)
+		}
+
+	case schemas.Private:
+		var privateReq schemas.PrivateCreateSessionRequest
+		err = api.Parse(r.Context(), &privateReq, bytes)
+		if err == nil {
+			handlePrivateReq(w, r, privateReq)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	var dto *api.Error
+	errors.As(err, &dto)
+	_ = encoder.Encode(dto)
+	log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+}
+
+func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.PublicCreateSessionRequest) {
+
+}
+
+func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas.PrivateCreateSessionRequest) {
+
 }
