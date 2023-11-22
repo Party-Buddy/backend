@@ -16,4 +16,4 @@ RUN cd /migrate && \
 	tar xvfz migrate.tar.gz
 
 COPY migrations /migrate/migrations/
-COPY scripts/setup-db.sh /docker-entrypoint-initdb.d/setup-db.sh
+COPY test-db /docker-entrypoint-initdb.d/
