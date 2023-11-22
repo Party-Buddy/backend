@@ -2,10 +2,13 @@ package schemas
 
 import (
 	"context"
+	"fmt"
 	"github.com/cohesivestack/valgo"
 	"github.com/google/uuid"
 	"party-buddy/internal/configuration"
+	"party-buddy/internal/util"
 	"party-buddy/internal/validate"
+	"regexp"
 )
 
 type ImgRequest int8
@@ -60,13 +63,26 @@ type FullGameInfo struct {
 
 func (info *FullGameInfo) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
-	// TODO
+	reg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
 
-	return f.Is(valgo.String(info.Name, "name", "name"))
+	info.Name = util.ReplaceEwith2Dots(info.Name)
+	v := f.Is(valgo.String(info.Name, "name", "name").
+		MatchingTo(reg).MaxLength(configuration.MaxNameLength))
+	info.Description = util.ReplaceEwith2Dots(info.Description)
+	v = v.Is(valgo.String(info.Description, "description", "description").
+		MatchingTo(reg).MaxLength(configuration.MaxDescriptionLength))
+	v = v.Is(valgo.Any(info.Tasks).Passing(func(v any) bool {
+		tasks := v.([]AnsweredTask)
+		return len(tasks) >= configuration.MinTaskCount && len(tasks) <= configuration.MaxTaskCount
+	}))
+	for i := 0; i < len(info.Tasks); i++ {
+		v = v.Merge(info.Tasks[i].Validate(ctx))
+	}
+	return v
 }
 
 type AnsweredTask interface {
-	valgo.Validator
+	Validate(ctx context.Context) *valgo.Validation
 	isAnsweredTask()
 }
 
