@@ -99,6 +99,26 @@ type AnsweredCheckedTextTaskImgRequest struct {
 
 func (*AnsweredCheckedTextTaskImgRequest) isAnsweredTask() {}
 
+func (t *AnsweredCheckedTextTaskImgRequest) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	baseReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
+	chedkedTextReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.CheckedTextAnswerTemplate))
+
+	t.Name = util.ReplaceEwith2Dots(t.Name)
+	v := f.Is(valgo.String(t.Name, "name", "name").
+		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
+	t.Description = util.ReplaceEwith2Dots(t.Description)
+	v = v.Is(valgo.String(t.Description, "description", "description").
+		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
+	return v.
+		Is(valgo.String(t.Type, "type", "type").EqualTo(CheckedText)).
+		Is(valgo.String(t.Answer, "answer", "answer").
+			MatchingTo(chedkedTextReg).MaxLength(configuration.MaxCheckedTextAnswerLength)).
+		Is(valgo.Any(t.Duration, "duration", "duration").Passing(func(d any) bool {
+			return d.(PollDuration).Kind == Fixed
+		}))
+}
+
 type AnsweredChoiceTaskImgRequest struct {
 	BaseTaskWithImgRequest
 
