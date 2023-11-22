@@ -24,9 +24,6 @@ type ConnInfo struct {
 	// sid is the SessionId to which ws connection is related
 	sid session.SessionId
 
-	// servDataChan is the channel for getting event messages from server
-	servDataChan session.TxChan
-
 	// msgToClientChan is the channel for messages ready to send to client
 	msgToClientChan chan<- ws.RespMessage
 
@@ -56,10 +53,9 @@ func NewConnInfo(
 
 func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
 	servChan := make(chan session.ServerTx)
-	c.servDataChan = servChan
 	msgChan := make(chan ws.RespMessage)
 	c.msgToClientChan = msgChan
-	go c.runReader(ctx)
+	go c.runReader(ctx, servChan)
 	go c.runServeToWriterConverter(ctx, msgChan, servChan)
 	go c.runWriter(ctx, msgChan)
 	log.Printf("ConnInfo start serving for client: %v", c.client.UUID().String())
@@ -116,7 +112,7 @@ func msgIDFromContext(ctx context.Context) ws.MessageId {
 	return ctx.Value(msgIDKey).(ws.MessageId)
 }
 
-func (c *ConnInfo) runReader(ctx context.Context) {
+func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 	for {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
@@ -148,7 +144,7 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:
-			c.handleJoin(ctx, m)
+			c.handleJoin(ctx, m, servDataChan)
 		}
 
 	}

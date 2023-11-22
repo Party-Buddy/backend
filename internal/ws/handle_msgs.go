@@ -9,8 +9,8 @@ import (
 	"party-buddy/internal/ws/utils"
 )
 
-func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin) {
-	playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, c.servDataChan)
+func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataChan session.TxChan) {
+	playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, servDataChan)
 	if err != nil {
 		var errMsg ws.MessageError
 		switch {
