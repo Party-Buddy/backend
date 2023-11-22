@@ -30,8 +30,9 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 		log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
 			c.client.UUID().String(), err.Error(), errMsg.Code)
 		c.msgToClientChan <- &errMsg
-		// TODO: close connections
+
+		c.Dispose()
 		return
 	}
-	c.playerID = playerID
+	c.playerID = &playerID
 }
