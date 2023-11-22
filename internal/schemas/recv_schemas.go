@@ -91,6 +91,21 @@ type BaseTaskWithImgRequest struct {
 	ImgRequest ImgRequest `json:"img-request"`
 }
 
+func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	baseReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
+
+	t.Name = util.ReplaceEwith2Dots(t.Name)
+	v := f.Is(valgo.String(t.Name, "name", "name").
+		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
+	t.Description = util.ReplaceEwith2Dots(t.Description)
+	v = v.Is(valgo.String(t.Description, "description", "description").
+		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
+	return v.Is(valgo.Any(t.Duration, "duration", "duration").Passing(func(d any) bool {
+		return d.(PollDuration).Kind == Fixed
+	}))
+}
+
 type AnsweredCheckedTextTaskImgRequest struct {
 	BaseTaskWithImgRequest
 
@@ -100,23 +115,12 @@ type AnsweredCheckedTextTaskImgRequest struct {
 func (*AnsweredCheckedTextTaskImgRequest) isAnsweredTask() {}
 
 func (t *AnsweredCheckedTextTaskImgRequest) Validate(ctx context.Context) *valgo.Validation {
-	f, _ := validate.FromContext(ctx)
-	baseReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
-	chedkedTextReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.CheckedTextAnswerTemplate))
+	checkedTextReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.CheckedTextAnswerTemplate))
 
-	t.Name = util.ReplaceEwith2Dots(t.Name)
-	v := f.Is(valgo.String(t.Name, "name", "name").
-		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
-	t.Description = util.ReplaceEwith2Dots(t.Description)
-	v = v.Is(valgo.String(t.Description, "description", "description").
-		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
-	return v.
+	return t.BaseTaskWithImgRequest.Validate(ctx).
 		Is(valgo.String(t.Type, "type", "type").EqualTo(CheckedText)).
 		Is(valgo.String(t.Answer, "answer", "answer").
-			MatchingTo(chedkedTextReg).MaxLength(configuration.MaxCheckedTextAnswerLength)).
-		Is(valgo.Any(t.Duration, "duration", "duration").Passing(func(d any) bool {
-			return d.(PollDuration).Kind == Fixed
-		}))
+			MatchingTo(checkedTextReg).MaxLength(configuration.MaxCheckedTextAnswerLength))
 }
 
 type AnsweredChoiceTaskImgRequest struct {
@@ -128,14 +132,45 @@ type AnsweredChoiceTaskImgRequest struct {
 
 func (*AnsweredChoiceTaskImgRequest) isAnsweredTask() {}
 
+func (t *AnsweredChoiceTaskImgRequest) Validate(ctx context.Context) *valgo.Validation {
+	v := t.BaseTaskWithImgRequest.Validate(ctx).
+		Is(valgo.String(t.Type, "type", "type").EqualTo(Choice)).
+		Is(valgo.Uint8(t.AnswerIndex, "answer", "answer").LessThan(configuration.OptionsCount)).
+		Is(valgo.Any(t.Options, "options", "options").Passing(func(v any) bool {
+			return len(v.([]string)) == configuration.OptionsCount
+		}))
+	for i := 0; i < len(t.Options); i++ {
+		v = v.Is(valgo.String(t.Options[i], "option", "option").MaxLength(configuration.MaxOptionLength))
+	}
+	return v
+}
+
 type AnsweredPhotoTaskImgRequest struct {
 	BaseTaskWithImgRequest
 }
 
 func (*AnsweredPhotoTaskImgRequest) isAnsweredTask() {}
 
+func (t *AnsweredPhotoTaskImgRequest) Validate(ctx context.Context) *valgo.Validation {
+	return t.BaseTaskWithImgRequest.Validate(ctx).
+		Is(valgo.String(t.Type, "type", "type").EqualTo(Photo)).
+		Is(valgo.Any(t.PollDuration, "poll-duration", "poll-duration").Passing(func(v any) bool {
+			d := v.(PollDuration)
+			return d.Kind == Fixed || d.Kind == Dynamic
+		}))
+}
+
 type AnsweredTextTaskImgRequest struct {
 	BaseTaskWithImgRequest
 }
 
 func (*AnsweredTextTaskImgRequest) isAnsweredTask() {}
+
+func (t *AnsweredTextTaskImgRequest) Validate(ctx context.Context) *valgo.Validation {
+	return t.BaseTaskWithImgRequest.Validate(ctx).
+		Is(valgo.String(t.Type, "type", "type").EqualTo(Text)).
+		Is(valgo.Any(t.PollDuration, "poll-duration", "poll-duration").Passing(func(v any) bool {
+			d := v.(PollDuration)
+			return d.Kind == Fixed || d.Kind == Dynamic
+		}))
+}

@@ -15,5 +15,6 @@ const (
 	MaxCheckedTextAnswerLength        = 20
 	CheckedTextAnswerTemplate  string = "A-ZА-Я0-9,./?<>()\\-_+=|;:!@#$%^&*{}\\[\\]\"'\\\\№`~ "
 
-	OptionsCount = 4
+	OptionsCount    = 4
+	MaxOptionLength = 20
 )
