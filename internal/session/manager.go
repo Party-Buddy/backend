@@ -337,6 +337,8 @@ func (m *Manager) RequestDisconnect(ctx context.Context, sid SessionId, clientID
 		msg := MsgDisconnect{baseTx{Ctx: ctx}}
 		m.sendToPlayer(player.Tx, &msg)
 
+		m.closePlayerTx(ctx, s, sid, playerID)
+
 		_, ok := s.removePlayer(sid, clientID)
 		if ok {
 			// TODO: notify other players that the player disconnected

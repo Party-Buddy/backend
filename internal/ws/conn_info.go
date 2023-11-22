@@ -40,6 +40,9 @@ type ConnInfo struct {
 
 	// cancel is a function to call for cancelling runWriter, runServeToWriterConverter
 	cancel context.CancelFunc
+
+	// servDataChan here for closing
+	servDataChan session.TxChan
 }
 
 func NewConnInfo(
@@ -191,6 +194,7 @@ func (c *ConnInfo) Dispose(ctx context.Context) {
 	} else {
 		// Manager knows nothing about client, so we just stop threads
 		c.cancel()
+		close(c.servDataChan)
 	}
 }
 
