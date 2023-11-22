@@ -1,0 +1,69 @@
+name: party-buddy
+
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+
+    ports:
+      - "9601:5432"
+
+    environment:
+      POSTGRES_USER: pb
+      POSTGRES_DB: pb
+      POSTGRES_PASSWORD_FILE: "/run/secrets/postgres-passwd"
+
+    secrets:
+      - source: "postgres-passwd"
+        target: "/run/secrets/postgres-passwd"
+
+    volumes:
+      - "db:/var/lib/postgres/data"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+
+    depends_on:
+      postgres:
+        condition: service_started
+        restart: true
+
+    ports:
+      - "9602:8000"
+
+    environment:
+      PARTY_BUDDY_HOST: "0.0.0.0"
+      PARTY_BUDDY_PORT: "8000"
+      PARTY_BUDDY_DB_HOST: "postgres"
+      PARTY_BUDDY_DB_PORT: "5432"
+      PARTY_BUDDY_DB_NAME: "pb"
+      PARTY_BUDDY_DB_USER: "pb"
+      PARTY_BUDDY_IMG_PATH: "/app/images"
+
+      START_DB_PASSWORD_FILE: "/run/secrets/postgres-passwd"
+
+    secrets:
+      - source: "postgres-passwd"
+        target: "/run/secrets/postgres-passwd"
+
+    volumes:
+      - "backend-cfg:/app/configs:ro"
+      - "backend-img:/app/images"
+
+networks:
+  backend:
+
+secrets:
+  postgres-passwd:
+    file: ./container/postgres-passwd.txt
+
+volumes:
+  db:
+    name: pb-db
+  backend-cfg:
+    name: pb-backend-cfg
+  backend-img:
+    name: pb-backend-img
