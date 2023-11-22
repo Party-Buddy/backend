@@ -25,7 +25,7 @@ type ConnInfo struct {
 	sid session.SessionId
 
 	// servDataChan is the channel for getting event messages from server
-	servDataChan chan<- session.ServerTx
+	servDataChan session.TxChan
 
 	// msgToClientChan is the channel for messages ready to send to client
 	msgToClientChan chan<- ws.RespMessage
@@ -155,7 +155,6 @@ func (c *ConnInfo) runReader(ctx context.Context) {
 }
 
 func (c *ConnInfo) Dispose() {
-	close(c.servDataChan)
 	close(c.msgToClientChan)
 	_ = c.wsConn.Close()
 }

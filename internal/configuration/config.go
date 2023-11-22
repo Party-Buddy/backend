@@ -30,8 +30,8 @@ func configureEnvs() {
 
 	_ = viper.BindEnv("img.path", appEnvImgPrefix+"_PATH")
 
-	_ = viper.BindEnv("outer.host", appEnvExternalPrefix+"_HOST")
-	_ = viper.BindEnv("outer.port", appEnvExternalPrefix+"_PORT")
+	_ = viper.BindEnv("external.host", appEnvExternalPrefix+"_HOST")
+	_ = viper.BindEnv("external.port", appEnvExternalPrefix+"_PORT")
 }
 
 // ConfigureApp try to get configuration from ./configs/conf.[ext] file.
@@ -76,11 +76,11 @@ func GetImgDirectory() string {
 }
 
 func GenImgURI(imgID uuid.UUID) string {
-	host := viper.GetString("outer.host")
+	host := viper.GetString("external.host")
 	if host == "" {
 		host = viper.GetString("server.host")
 	}
-	port := viper.GetString("outer.port")
+	port := viper.GetString("external.port")
 	if port == "" {
 		port = viper.GetString("server.port")
 	}
