@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"io"
@@ -112,9 +113,7 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	var baseReq schemas.BaseCreateSessionRequest
-
-	//var pubReq schemas.PublicCreateSessionRequest
-	err = api.Parse(r.Context(), &baseReq, bytes)
+	err = api.Parse(r.Context(), &baseReq, bytes, true)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -128,16 +127,18 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	switch baseReq.GameType {
 	case schemas.Public:
 		var publicReq schemas.PublicCreateSessionRequest
-		err = api.Parse(r.Context(), &publicReq, bytes)
+		err = api.Parse(r.Context(), &publicReq, bytes, false)
 		if err == nil {
 			handlePublicReq(w, r, publicReq)
+			return
 		}
 
 	case schemas.Private:
 		var privateReq schemas.PrivateCreateSessionRequest
-		err = api.Parse(r.Context(), &privateReq, bytes)
+		err = api.Parse(r.Context(), &privateReq, bytes, false)
 		if err == nil {
 			handlePrivateReq(w, r, privateReq)
+			return
 		}
 	}
 
@@ -150,9 +151,9 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 }
 
 func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.PublicCreateSessionRequest) {
-
+	_, _ = fmt.Fprint(w, "Hello, world from public!")
 }
 
 func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas.PrivateCreateSessionRequest) {
-
+	_, _ = fmt.Fprint(w, "Hello, world from private!")
 }

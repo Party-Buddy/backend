@@ -103,9 +103,11 @@ func (e *Error) String() string {
 
 // Parse parses JSON-encoded data into target and runs validation.
 // Returns a formatted [Error] on parsing failure.
-func Parse(ctx context.Context, target validate.Validator, data []byte) error {
+func Parse(ctx context.Context, target validate.Validator, data []byte, allowUnknownFields bool) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
+	if !allowUnknownFields {
+		decoder.DisallowUnknownFields()
+	}
 	if err := decoder.Decode(target); err != nil {
 		var typeError *json.UnmarshalTypeError
 		if errors.As(err, &typeError) {
