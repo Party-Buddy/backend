@@ -83,11 +83,6 @@ func (info *FullGameInfo) Validate(ctx context.Context) *valgo.Validation {
 	return v
 }
 
-type AnsweredTask interface {
-	Validate(ctx context.Context) *valgo.Validation
-	isAnsweredTask()
-}
-
 type BaseTaskWithImgRequest struct {
 	BaseTask
 	ImgRequest ImgRequest `json:"img-request"`
