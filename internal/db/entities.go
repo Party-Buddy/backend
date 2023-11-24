@@ -75,65 +75,67 @@ const (
 // TaskEntity - provides info about task
 // Table - tasks
 type TaskEntity struct {
-	ID uuid.NullUUID
+	ID uuid.NullUUID `db:"id"`
 
-	OwnerID uuid.NullUUID
-	ImageID uuid.NullUUID
+	OwnerID uuid.NullUUID `db:"owner_id"`
+	ImageID uuid.NullUUID `db:"image_id"`
 
-	Name                string
-	Description         string
-	DurationSeconds     int
-	PollDurationSeconds int
+	Name                string `db:"name"`
+	Description         string `db:"description"`
+	DurationSeconds     int    `db:"duration_secs"`
+	PollDurationSeconds int    `db:"poll_duration_secs"`
 
-	PollDurationType PollDurationType
+	PollDurationType PollDurationType `db:"poll_duration_type"`
 
-	TaskKind TaskKind
+	TaskKind TaskKind `db:"task_kind"`
 }
 
 // CheckedTextTaskEntity - task with TaskKind == CheckedText.
 // Relationship 1:1
 // Relative table - checked_text_tasks
 type CheckedTextTaskEntity struct {
-	TaskEntity // field TaskKind should be CheckedText
+	TaskID uuid.NullUUID `db:"task_id"`
 
-	Answer string
+	Answer string `db:"answer"`
 }
 
 // ChoiceTaskOptionsEntity - options for task with TaskKind == Choice.
 // One choice task can have many options.
 // Table - choice_task_options
 type ChoiceTaskOptionsEntity struct {
-	TaskID uuid.NullUUID
+	ID int `db:"id"`
+
+	TaskID uuid.NullUUID `db:"task_id"`
 
 	// Alternative is one of the option for the Task with id == TaskID
-	Alternative string
+	Alternative string `db:"alternative"`
 
 	// Correct shows if this option is true or not
-	Correct bool
+	Correct bool `db:"correct"`
 }
 
 // GameEntity represents the game
 // Table - games
 type GameEntity struct {
-	ID uuid.NullUUID
+	ID uuid.NullUUID `db:"id"`
 
-	Name        string
-	Description string
+	Name        string `db:"name"`
+	Description string `db:"description"`
 
-	OwnerID uuid.NullUUID
-	ImageID uuid.NullUUID // may be nil
+	OwnerID uuid.NullUUID `db:"owner_id"`
+	ImageID uuid.NullUUID `db:"image_id"` // may be nil
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 // GameTaskEntity represents the one task of the game.
 // Game can have many tasks, and task can be in many games.
 // Table - game_tasks
 type GameTaskEntity struct {
-	GameID uuid.NullUUID
-	TaskID uuid.NullUUID
+	GameID uuid.NullUUID `db:"game_id"`
+	TaskID uuid.NullUUID `db:"task_id"`
 
 	// TaskIndex is used to define tasks order in game
-	TaskIndex int
+	TaskIndex int `db:"task_idx"`
 }
