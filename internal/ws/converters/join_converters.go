@@ -23,10 +23,10 @@ func ToPollDuration(pd session.PollDurationer) schemas.PollDuration {
 
 func ToSchemaTask(t session.Task) schemas.BaseTaskWithImg {
 	task := schemas.BaseTaskWithImg{}
-	task.Name = t.Name()
-	task.Description = t.Description()
-	task.ImgURI = configuration.GenImgURI(t.ImageId().UUID)
-	task.Duration = schemas.PollDuration{Kind: schemas.Fixed, Secs: uint16(t.TaskDuration().Seconds())}
+	task.Name = t.GetName()
+	task.Description = t.GetDescription()
+	task.ImgURI = configuration.GenImgURI(t.GetImageId().UUID)
+	task.Duration = schemas.PollDuration{Kind: schemas.Fixed, Secs: uint16(t.GetTaskDuration().Seconds())}
 	switch t := t.(type) {
 	case *session.PhotoTask:
 		{

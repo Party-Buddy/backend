@@ -8,7 +8,7 @@ import (
 
 type managerKeyType int
 
-var managerKey txKeyType
+var managerKey managerKeyType
 
 // ManagerUsingMiddleware is a middleware for db usage
 type ManagerUsingMiddleware struct {

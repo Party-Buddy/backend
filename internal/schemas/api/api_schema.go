@@ -63,6 +63,7 @@ var (
 
 var (
 	ErrInvalidUpgrade ErrorKind = "invalid-upgrade"
+	ErrUpgradeFailed  ErrorKind = "upgrade-failed"
 )
 
 type Error struct {
