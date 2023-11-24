@@ -11,8 +11,9 @@ func GetGameTasksByID(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) ([]TaskE
 		SELECT id, name, owner_id, description, image_id, duration_secs, poll_duration_secs, poll_duration_type, task_kind  
 		FROM tasks t 
 		INNER JOIN game_tasks gt
-		ON gt.game_id = $1
-		WHERE t.id = gt.task_id
+		ON t.id = gt.task_id
+		WHERE gt.game_id = $1
+		ORDER BY gt.task_idx
 	`, uuid.NullUUID{UUID: gameID, Valid: true})
 
 	if err != nil {

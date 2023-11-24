@@ -199,6 +199,7 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 	defer tx.Commit(r.Context())
 
 	req := schemas.SessionCreateResponse{InviteCode: string(code), ImgRequests: []schemas.ImgReqResponse{}}
+	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = encoder.Encode(req)

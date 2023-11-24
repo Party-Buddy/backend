@@ -31,7 +31,7 @@ func gameIDToSessionGame(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) (sess
 		if err != nil {
 			return session.Game{}, err
 		}
-		tasks = append(tasks, t)
+		tasks[i] = t
 	}
 	game.Tasks = tasks
 	return game, nil
