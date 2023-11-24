@@ -56,6 +56,14 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		tx := TxFromContext(r.Context())
 
 		entity, err := db.GetUserByID(r.Context(), tx, userID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			dto := api.Errorf(api.ErrInternal, "internal server error while getting user")
+			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), err.Error())
+			_ = encoder.Encode(dto)
+			return
+		}
 		authInfo := AuthInfo{ID: entity.ID.UUID, Role: entity.Role}
 
 		ctx := context.WithValue(r.Context(), authKey, authInfo)

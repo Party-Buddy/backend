@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"io"
@@ -154,7 +153,55 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 }
 
 func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.PublicCreateSessionRequest) {
-	_, _ = fmt.Fprint(w, "Hello, world from public!")
+	encoder := json.NewEncoder(w)
+	tx := middleware.TxFromContext(r.Context())
+
+	game, err := gameIDToSessionGame(r.Context(), tx, publicReq.GameID)
+	if err != nil {
+		var dto *api.Error
+		errors.As(err, &dto)
+		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		w.Header().Set("Content-Type", "application/json")
+		switch dto.Kind {
+		case api.ErrInternal:
+			dto.Message = ""
+			w.WriteHeader(http.StatusInternalServerError)
+
+		case api.ErrNotFound:
+			dto.Message = "game not found"
+			w.WriteHeader(http.StatusNotFound)
+
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		_ = encoder.Encode(dto)
+		return
+	}
+
+	authInfo := middleware.AuthInfoFromContext(r.Context())
+	manager := middleware.ManagerFromContext(r.Context())
+	_, code, _, err := manager.NewSession(
+		r.Context(),
+		tx,
+		&game,
+		session.ClientId(authInfo.ID),
+		"remove", // TODO: remove
+		publicReq.RequireReady,
+		int(publicReq.PlayerCount))
+	if err != nil {
+		log.Printf("request: %v %v -> err creating session: %v", r.Method, r.URL.String(), err.Error())
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		dto := api.Errorf(api.ErrInternal, "failed to create session")
+		_ = encoder.Encode(dto)
+		return
+	}
+	defer tx.Commit(r.Context())
+
+	req := schemas.SessionCreateResponse{InviteCode: string(code), ImgRequests: []schemas.ImgReqResponse{}}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = encoder.Encode(req)
 }
 
 func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas.PrivateCreateSessionRequest) {
@@ -171,6 +218,7 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 		switch dto.Kind {
 		case api.ErrTaskInvalid:
 			w.WriteHeader(http.StatusBadRequest)
+
 		default:
 			w.WriteHeader(http.StatusInternalServerError)
 		}
