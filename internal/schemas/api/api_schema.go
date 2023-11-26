@@ -71,8 +71,8 @@ type Error struct {
 	Message string    `json:"message"`
 }
 
-func Errorf(kind ErrorKind, format string, a ...any) *Error {
-	return &Error{
+func Errorf(kind ErrorKind, format string, a ...any) Error {
+	return Error{
 		Kind:    kind,
 		Message: fmt.Sprintf(format, a...),
 	}
