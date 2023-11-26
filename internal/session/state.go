@@ -22,7 +22,9 @@ type AwaitingPlayersState struct {
 	// The creator of the session.
 	// While waiting for players, they have additional privileges: for exmaple, they can remove people from the session.
 	// Of course, with great power comes great responsibility: if this player leaves, the session will be closed.
-	Owner PlayerID
+	//
+	// NOTE: the owner may not have yet connected to the session!
+	Owner ClientID
 }
 
 func (*AwaitingPlayersState) isState() {}

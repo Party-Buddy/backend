@@ -181,12 +181,11 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 
 	authInfo := middleware.AuthInfoFromContext(r.Context())
 	manager := middleware.ManagerFromContext(r.Context())
-	_, code, _, err := manager.NewSession(
+	_, code, err := manager.NewSession(
 		r.Context(),
 		tx,
 		&game,
 		session.ClientID(authInfo.ID),
-		"remove", // TODO: remove
 		*publicReq.RequireReady,
 		int(*publicReq.PlayerCount))
 	if err != nil {
@@ -231,12 +230,11 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 	}
 
 	manager := middleware.ManagerFromContext(r.Context())
-	_, code, _, err := manager.NewSession(
+	_, code, err := manager.NewSession(
 		r.Context(),
 		tx,
 		&game,
 		session.ClientID(authInfo.ID),
-		"remove", // TODO: remove
 		*privateReq.RequireReady,
 		int(*privateReq.PlayerCount))
 	if err != nil {

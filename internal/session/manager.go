@@ -107,12 +107,11 @@ func (m *Manager) NewSession(
 	tx pgx.Tx,
 	game *Game,
 	owner ClientID,
-	ownerNickname string,
 	requireReady bool,
 	playersMax int,
-) (sid SessionID, code InviteCode, ownerID PlayerID, err error) {
+) (sid SessionID, code InviteCode, err error) {
 	m.storage.Atomically(func(s *UnsafeStorage) {
-		sid, code, ownerID, err = s.NewSession(game, owner, ownerNickname, requireReady, playersMax)
+		sid, code, err = s.newSession(game, owner, requireReady, playersMax)
 		if err != nil {
 			return
 		}
