@@ -29,7 +29,7 @@ func toSessionGame(
 		imgID, err := db.CreateImageMetadata(tx, ctx, owner)
 		if err != nil {
 			return session.Game{}, nil, api.ErrorFromConverters{
-				ApiError:   *api.Errorf(api.ErrInternal, ""),
+				ApiError:   api.Errorf(api.ErrInternal, ""),
 				StatusCode: http.StatusInternalServerError,
 				LogMessage: fmt.Sprintf("failed to create img metadata: %s", err),
 			}
@@ -103,7 +103,7 @@ func toSessionTask(
 
 	default:
 		return nil, imgs, api.ErrorFromConverters{
-			ApiError:   *api.Errorf(api.ErrTaskInvalid, "unknown task type: %s", *task.Type),
+			ApiError:   api.Errorf(api.ErrTaskInvalid, "unknown task type: %s", *task.Type),
 			StatusCode: http.StatusBadRequest,
 			LogMessage: fmt.Sprintf("unknown task type: %s", *task.Type),
 		}
@@ -141,7 +141,7 @@ func genSessionImgID(
 			imgID, err := db.CreateImageMetadata(tx, ctx, owner)
 			if err != nil {
 				return sessionImgID, imgs, api.ErrorFromConverters{
-					ApiError:   *api.Errorf(api.ErrInternal, ""),
+					ApiError:   api.Errorf(api.ErrInternal, ""),
 					StatusCode: http.StatusInternalServerError,
 					LogMessage: fmt.Sprintf("failed to create img metadata: %s", err),
 				}

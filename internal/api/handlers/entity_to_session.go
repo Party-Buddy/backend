@@ -17,7 +17,7 @@ func gameIDToSessionGame(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) (sess
 	gameEntity, err := db.GameByID(ctx, tx, gameID)
 	if err != nil {
 		return session.Game{}, api.ErrorFromConverters{
-			ApiError:   *api.Errorf(api.ErrNotFound, "not found"),
+			ApiError:   api.Errorf(api.ErrNotFound, "not found"),
 			StatusCode: http.StatusNotFound,
 			LogMessage: fmt.Sprintf("failed to get game by id: %s", err),
 		}
@@ -30,7 +30,7 @@ func gameIDToSessionGame(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) (sess
 	taskEntities, err := db.GetGameTasksByID(ctx, tx, gameID)
 	if err != nil {
 		return session.Game{}, api.ErrorFromConverters{
-			ApiError:   *api.Errorf(api.ErrInternal, ""),
+			ApiError:   api.Errorf(api.ErrInternal, ""),
 			StatusCode: http.StatusInternalServerError,
 			LogMessage: fmt.Sprintf("failed to get game by id: %s", err),
 		}
@@ -102,7 +102,7 @@ func entityToSessionTask(ctx context.Context, tx pgx.Tx, entity db.TaskEntity) (
 
 	default:
 		return nil, api.ErrorFromConverters{
-			ApiError:   *api.Errorf(api.ErrInternal, ""),
+			ApiError:   api.Errorf(api.ErrInternal, ""),
 			StatusCode: http.StatusInternalServerError,
 			LogMessage: fmt.Sprintf("unknown task kind in database: %s", entity.TaskKind),
 		}
