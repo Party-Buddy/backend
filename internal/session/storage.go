@@ -8,6 +8,13 @@ type SyncStorage struct {
 	inner UnsafeStorage
 }
 
+func NewSyncStorage() SyncStorage {
+	return SyncStorage{
+		mtx:   sync.Mutex{},
+		inner: NewUnsafeStorage(),
+	}
+}
+
 // Atomically performs the provided operation on the inner storage atomically.
 // While the function is being run, no other goroutine may access the inner storage.
 // This function is not re-entrant: do not call Atomically in `f`.

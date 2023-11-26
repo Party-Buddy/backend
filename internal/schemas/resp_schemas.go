@@ -18,9 +18,12 @@ type BaseTask struct {
 
 	Type TaskType `json:"type"`
 
-	ImgURI string `json:"img-uri,omitempty"`
-
 	PollDuration PollDuration `json:"poll-duration,omitempty"`
+}
+
+type BaseTaskWithImg struct {
+	BaseTask
+	ImgURI string `json:"img-uri,omitempty"`
 }
 
 type DurationKind string
@@ -47,5 +50,5 @@ const (
 type GameDetails struct {
 	BaseGameInfo
 
-	Tasks []BaseTask `json:"tasks"`
+	Tasks []BaseTaskWithImg `json:"tasks"`
 }

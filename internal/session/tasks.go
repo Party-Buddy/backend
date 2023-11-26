@@ -5,10 +5,10 @@ import "time"
 // Tasks
 
 type Task interface {
-	Name() string
-	Description() string
-	ImageId() ImageId
-	TaskDuration() time.Duration
+	GetName() string
+	GetDescription() string
+	GetImageId() ImageId
+	GetTaskDuration() time.Duration
 	isTask() // an unexported marker method to indicate a type is in fact a task
 }
 
@@ -20,25 +20,90 @@ type BaseTask struct {
 }
 
 type PollTask struct {
-	Task
+	BaseTask
 
 	PollDuration PollDurationer
 }
 
 type PhotoTask PollTask
+
+func (t PhotoTask) GetImageId() ImageId {
+	return t.ImageId
+}
+
+func (t PhotoTask) GetName() string {
+	return t.Name
+}
+
+func (t PhotoTask) GetDescription() string {
+	return t.Description
+}
+
+func (t PhotoTask) GetTaskDuration() time.Duration {
+	return t.TaskDuration
+}
+
 type TextTask PollTask
 
+func (t TextTask) GetImageId() ImageId {
+	return t.ImageId
+}
+
+func (t TextTask) GetName() string {
+	return t.Name
+}
+
+func (t TextTask) GetDescription() string {
+	return t.Description
+}
+
+func (t TextTask) GetTaskDuration() time.Duration {
+	return t.TaskDuration
+}
+
 type CheckedTextTask struct {
-	Task
+	BaseTask
 
 	Answer string
 }
 
+func (t CheckedTextTask) GetImageId() ImageId {
+	return t.ImageId
+}
+
+func (t CheckedTextTask) GetName() string {
+	return t.Name
+}
+
+func (t CheckedTextTask) GetDescription() string {
+	return t.Description
+}
+
+func (t CheckedTextTask) GetTaskDuration() time.Duration {
+	return t.TaskDuration
+}
+
 type ChoiceTask struct {
-	Task
+	BaseTask
 
 	Options   []string
 	AnswerIdx int
+}
+
+func (t ChoiceTask) GetImageId() ImageId {
+	return t.ImageId
+}
+
+func (t ChoiceTask) GetName() string {
+	return t.Name
+}
+
+func (t ChoiceTask) GetDescription() string {
+	return t.Description
+}
+
+func (t ChoiceTask) GetTaskDuration() time.Duration {
+	return t.TaskDuration
 }
 
 func (PhotoTask) isTask()       {}

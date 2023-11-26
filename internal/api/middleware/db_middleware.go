@@ -30,7 +30,7 @@ func (dbm DBUsingMiddleware) Middleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusInternalServerError)
 			dto := api.Errorf(api.ErrInternal, "")
 			_ = encoder.Encode(dto)
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(),
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL,
 				api.Errorf(api.ErrInternal, "failed to start transaction").Error())
 
 			return

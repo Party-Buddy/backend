@@ -63,6 +63,7 @@ var (
 
 var (
 	ErrInvalidUpgrade ErrorKind = "invalid-upgrade"
+	ErrUpgradeFailed  ErrorKind = "upgrade-failed"
 )
 
 type Error struct {
@@ -70,18 +71,18 @@ type Error struct {
 	Message string    `json:"message"`
 }
 
-func Errorf(kind ErrorKind, format string, a ...any) *Error {
-	return &Error{
+func Errorf(kind ErrorKind, format string, a ...any) Error {
+	return Error{
 		Kind:    kind,
 		Message: fmt.Sprintf(format, a...),
 	}
 }
 
-func (e *Error) Error() string {
+func (e Error) Error() string {
 	return fmt.Sprintf("%v (code `%v`)", e.Message, e.Kind)
 }
 
-func (e *Error) String() string {
+func (e Error) String() string {
 	return e.Message
 }
 
@@ -103,9 +104,11 @@ func (e *Error) String() string {
 
 // Parse parses JSON-encoded data into target and runs validation.
 // Returns a formatted [Error] on parsing failure.
-func Parse(ctx context.Context, target validate.Validator, data []byte) error {
+func Parse(ctx context.Context, target validate.Validator, data []byte, allowUnknownFields bool) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
+	if !allowUnknownFields {
+		decoder.DisallowUnknownFields()
+	}
 	if err := decoder.Decode(target); err != nil {
 		var typeError *json.UnmarshalTypeError
 		if errors.As(err, &typeError) {
@@ -132,4 +135,26 @@ func Parse(ctx context.Context, target validate.Validator, data []byte) error {
 	}
 
 	return nil
+}
+
+type ImgRequest int8
+
+type SessionCreateResponse struct {
+	InviteCode  string           `json:"invite-code"`
+	ImgRequests []ImgReqResponse `json:"img-requests"`
+}
+
+type ImgReqResponse struct {
+	ImgRequest ImgRequest `json:"img-request"`
+	ImgURI     string     `json:"img-uri"`
+}
+
+type ErrorFromConverters struct {
+	ApiError   Error
+	StatusCode int
+	LogMessage string
+}
+
+func (e ErrorFromConverters) Error() string {
+	return fmt.Sprintf("%v, responsing with status code: %v", e.LogMessage, e.StatusCode)
 }

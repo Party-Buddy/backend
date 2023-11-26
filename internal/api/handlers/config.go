@@ -31,5 +31,8 @@ func ConfigureMux(pool *db.DBPool, manager *session.Manager) *mux.Router {
 	r.Handle("/api/v1/session", middleware.AuthMiddleware(
 		managerMid.Middleware(SessionConnectHandler{}))).Methods(http.MethodGet)
 
+	r.Handle("/api/v1/session", middleware.AuthMiddleware(
+		managerMid.Middleware(SessionCreateHandler{}))).Methods(http.MethodPost)
+
 	return r
 }

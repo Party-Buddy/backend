@@ -20,9 +20,10 @@ type Manager struct {
 
 func NewManager(db *db.DBPool) *Manager {
 	return &Manager{
-		db:      db,
-		storage: SyncStorage{},
-		runChan: make(chan runMsg),
+		db:       db,
+		storage:  NewSyncStorage(),
+		runChan:  make(chan runMsg),
+		updaters: make(map[SessionId]chan<- updateMsg),
 	}
 }
 
@@ -87,6 +88,7 @@ func (m *Manager) sendToUpdater(sid SessionId, msg updateMsg) {
 // Assumes all values are valid.
 func (m *Manager) NewSession(
 	ctx context.Context,
+	tx pgx.Tx,
 	game *Game,
 	owner ClientId,
 	ownerNickname string,
@@ -104,21 +106,14 @@ func (m *Manager) NewSession(
 			}
 		}()
 
-		err = m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
-			if err = m.registerImage(ctx, tx, sid, game.ImageId); err != nil {
-				return err
-			}
-
-			for _, task := range game.Tasks {
-				if err = m.registerImage(ctx, tx, sid, task.ImageId()); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		})
-		if err != nil {
+		if err = m.registerImage(ctx, tx, sid, game.ImageId); err != nil {
 			return
+		}
+
+		for _, task := range game.Tasks {
+			if err = m.registerImage(ctx, tx, sid, task.GetImageId()); err != nil {
+				return
+			}
 		}
 	})
 
