@@ -9,6 +9,13 @@ type UnsafeStorage struct {
 	inviteCodes map[InviteCode]SessionId
 }
 
+func NewUnsafeStorage() UnsafeStorage {
+	return UnsafeStorage{
+		sessions:    make(map[SessionId]*session),
+		inviteCodes: make(map[InviteCode]SessionId),
+	}
+}
+
 // InviteCodeLimit is the maximum allowed number of non-expired invite codes.
 const InviteCodeLimit = MaxInviteCodeCount / 2
 

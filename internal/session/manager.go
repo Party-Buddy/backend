@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"party-buddy/internal/db"
 	"party-buddy/internal/util"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -21,14 +20,8 @@ type Manager struct {
 
 func NewManager(db *db.DBPool) *Manager {
 	return &Manager{
-		db: db,
-		storage: SyncStorage{
-			mtx: sync.Mutex{},
-			inner: UnsafeStorage{
-				sessions:    make(map[SessionId]*session),
-				inviteCodes: make(map[InviteCode]SessionId),
-			},
-		},
+		db:       db,
+		storage:  NewSyncStorage(),
 		runChan:  make(chan runMsg),
 		updaters: make(map[SessionId]chan<- updateMsg),
 	}
@@ -141,7 +134,7 @@ func (m *Manager) NewSession(
 func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionId, imageId ImageId) error {
 	if imageId.Valid {
 		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageId.UUID); err != nil {
-			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageId, sid.UUID().String(), err)
+			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageId, sid, err)
 		}
 	}
 

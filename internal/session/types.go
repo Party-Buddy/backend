@@ -59,12 +59,20 @@ func NewSessionId() SessionId {
 	return SessionId(uuid)
 }
 
+func (sid SessionId) String() string {
+	return sid.UUID().String()
+}
+
 func NewPlayerId() PlayerId {
 	uuid, err := uuid.NewRandom()
 	if err != nil {
 		panic(fmt.Sprintf("could not generate player id: %v", err))
 	}
 	return PlayerId(uuid)
+}
+
+func (id PlayerId) String() string {
+	return id.UUID().String()
 }
 
 // An InviteCode is a short code used for session discovery.
