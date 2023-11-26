@@ -24,124 +24,170 @@ const (
 )
 
 type BaseCreateSessionRequest struct {
-	PlayerCount  int8     `json:"player-count"`
-	RequireReady bool     `json:"require-ready"`
-	GameType     GameType `json:"game-type"`
+	PlayerCount  *int8     `json:"player-count"`
+	RequireReady *bool     `json:"require-ready"`
+	GameType     *GameType `json:"game-type"`
 }
 
 func (r *BaseCreateSessionRequest) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
 	return f.
-		Is(valgo.Int8(r.PlayerCount, "player-count", "player-count").
+		Is(valgo.Int8P(r.PlayerCount, "player-count", "player-count").Not().Nil().
 			Between(configuration.PlayerMin, configuration.PlayerMax)).
-		Is(valgo.String(r.GameType, "game-type", "game-type").
-			Not().Blank().InSlice([]GameType{Public, Private}, "game-type"))
+		Is(valgo.StringP(r.GameType, "game-type", "game-type").Not().Nil().
+			InSlice([]GameType{Public, Private}, "game-type"))
 }
 
 type PublicCreateSessionRequest struct {
 	BaseCreateSessionRequest
-	GameID uuid.UUID `json:"game-id"`
+	GameID *uuid.UUID `json:"game-id"`
 }
 
 func (r *PublicCreateSessionRequest) Validate(ctx context.Context) *valgo.Validation {
 	return r.BaseCreateSessionRequest.Validate(ctx).
-		Is(valgo.String(r.GameType, "game-type", "game-type").EqualTo(Public))
+		Is(valgo.StringP(r.GameType, "game-type", "game-type").EqualTo(Public))
 }
 
 type PrivateCreateSessionRequest struct {
 	BaseCreateSessionRequest
-	Game FullGameInfo `json:"game"`
+	Game *FullGameInfo `json:"game"`
 }
 
 func (r *PrivateCreateSessionRequest) Validate(ctx context.Context) *valgo.Validation {
 	return r.BaseCreateSessionRequest.Validate(ctx).
-		Is(valgo.String(r.GameType, "game-type", "game-type").EqualTo(Private))
+		Is(valgo.StringP(r.GameType, "game-type", "game-type").EqualTo(Private)).
+		Merge(r.Game.Validate(ctx))
 }
 
 type FullGameInfo struct {
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	ImgRequest  api.ImgRequest           `json:"img-request"`
-	Tasks       []BaseTaskWithImgRequest `json:"tasks"`
+	Name        *string                   `json:"name"`
+	Description *string                   `json:"description"`
+	ImgRequest  *api.ImgRequest           `json:"img-request"`
+	Tasks       *[]BaseTaskWithImgRequest `json:"tasks"`
 }
 
 func (info *FullGameInfo) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
-	v := f.Is(valgo.String(info.Name, "name", "name").
+	v := f.Is(valgo.StringP(info.Name, "name", "name").Not().Nil().
 		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
-	v = v.Is(valgo.String(info.Description, "description", "description").
+	v = v.Is(valgo.StringP(info.Description, "description", "description").Not().Nil().
 		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
-	v = v.Is(valgo.Any(info.Tasks).Passing(func(v any) bool {
-		tasks := v.([]BaseTaskWithImgRequest)
-		return len(tasks) >= configuration.MinTaskCount && len(tasks) <= configuration.MaxTaskCount
-	}))
-	for i := 0; i < len(info.Tasks); i++ {
-		v = v.Merge(info.Tasks[i].Validate(ctx))
+	v = v.Is(validate.FieldValue(info.Tasks).Set()).
+		Is(valgo.Any(info.Tasks).Passing(func(v any) bool {
+			tasks := v.(*[]BaseTaskWithImgRequest)
+			if tasks == nil {
+				return false
+			}
+			return len(*tasks) >= configuration.MinTaskCount && len(*tasks) <= configuration.MaxTaskCount
+		}))
+	if info.Tasks == nil {
+		return v
+	}
+	for i := 0; i < len(*info.Tasks); i++ {
+		v = v.Merge((*info.Tasks)[i].Validate(ctx))
 	}
 	return v
 }
 
 type BaseTaskWithImgRequest struct {
-	BaseTask
-	ImgRequest api.ImgRequest `json:"img-request"`
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+
+	// Duration must be Fixed
+	Duration *PollDuration `json:"duration"`
+
+	Type *TaskType `json:"type"`
+
+	PollDuration *PollDuration `json:"poll-duration,omitempty"`
+
+	ImgRequest *api.ImgRequest `json:"img-request"`
 
 	// Answer from CheckedTextTask
-	Answer string `json:"answer,omitempty"`
+	Answer *string `json:"answer,omitempty"`
 
 	// Options from ChoiceTask
-	Options []string `json:"options,omitempty"`
+	Options *[]string `json:"options,omitempty"`
 
 	//AnswerIdx from ChoiceTask
-	AnswerIndex uint8 `json:"answer-idx,omitempty"`
+	AnswerIndex *uint8 `json:"answer-idx,omitempty"`
 }
 
 func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
-	v := f.Is(valgo.String(t.Name, "name", "name").
+	v := f.Is(valgo.StringP(t.Name, "name", "name").Not().Nil().
 		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
-	v = v.Is(valgo.String(t.Description, "description", "description").
+	v = v.Is(valgo.StringP(t.Description, "description", "description").Not().Nil().
 		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
 	v = v.
+		Is(validate.FieldValue(t.Duration, "duration", "duration").Set()).
 		Is(valgo.Any(t.Duration, "duration", "duration").Passing(
 			func(d any) bool {
-				return d.(PollDuration).Kind == Fixed
+				dur := d.(*PollDuration)
+				if dur == nil {
+					return false
+				}
+				return dur.Kind == Fixed
 			})).
-		Is(valgo.String(t.Type, "type", "type").InSlice([]TaskType{Photo, Text, Choice, CheckedText}))
+		Is(valgo.StringP(t.Type, "type", "type").Not().Not().
+			InSlice([]TaskType{Photo, Text, Choice, CheckedText}))
 
-	switch t.Type {
+	if t.Type == nil {
+		return v
+	}
+
+	switch *t.Type {
 	case Photo:
-		v = v.Is(valgo.String(t.Type, "type", "type").EqualTo(Photo)).
+		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(Photo)).
+			Is(validate.FieldValue(t.PollDuration).Set()).
 			Is(valgo.Any(t.PollDuration, "poll-duration", "poll-duration").Passing(func(v any) bool {
-				d := v.(PollDuration)
+				d := v.(*PollDuration)
+				if d == nil {
+					return false
+				}
 				return d.Kind == Fixed || d.Kind == Dynamic
 			}))
 		return v
 
 	case Text:
-		v = v.Is(valgo.String(t.Type, "type", "type").EqualTo(Text)).
+		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(Text)).
+			Is(validate.FieldValue(t.PollDuration).Set()).
 			Is(valgo.Any(t.PollDuration, "poll-duration", "poll-duration").Passing(func(v any) bool {
-				d := v.(PollDuration)
+				d := v.(*PollDuration)
+				if d == nil {
+					return false
+				}
 				return d.Kind == Fixed || d.Kind == Dynamic
 			}))
 		return v
 
 	case Choice:
-		v = v.Is(valgo.String(t.Type, "type", "type").EqualTo(Choice)).
-			Is(valgo.Uint8(t.AnswerIndex, "answer", "answer").LessThan(configuration.OptionsCount)).
+		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(Choice)).
+			Is(valgo.Uint8P(t.AnswerIndex, "answer", "answer").Not().Nil().
+				LessThan(configuration.OptionsCount)).
+			Is(validate.FieldValue(t.Options).Set()).
 			Is(valgo.Any(t.Options, "options", "options").Passing(func(v any) bool {
-				return len(v.([]string)) == configuration.OptionsCount
+				opts := v.(*[]string)
+				if opts == nil {
+					return false
+				}
+				return len(*opts) == configuration.OptionsCount
 			}))
-		for i := 0; i < len(t.Options); i++ {
-			v = v.Is(valgo.String(t.Options[i], "option", "option").MaxLength(configuration.MaxOptionLength))
+		if t.Options == nil {
+			return v
+		}
+
+		for i := 0; i < len(*t.Options); i++ {
+			v = v.Is(valgo.String((*t.Options)[i], "option", "option").
+				MatchingTo(baseReg).MaxLength(configuration.MaxOptionLength))
 		}
 		return v
 
 	case CheckedText:
-		v = v.Is(valgo.String(t.Type, "type", "type").EqualTo(CheckedText)).
-			Is(valgo.String(t.Answer, "answer", "answer").
+		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(CheckedText)).
+			Is(valgo.StringP(t.Answer, "answer", "answer").Not().Nil().
 				MatchingTo(checkedTextReg).MaxLength(configuration.MaxCheckedTextAnswerLength))
 		return v
 

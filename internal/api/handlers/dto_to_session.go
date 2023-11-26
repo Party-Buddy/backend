@@ -20,20 +20,20 @@ func toSessionGame(
 ) (session.Game, []api.ImgReqResponse, error) {
 
 	game := session.Game{}
-	game.Name = gameInfo.Name
-	game.Description = gameInfo.Description
+	game.Name = *gameInfo.Name
+	game.Description = *gameInfo.Description
 	imgs := make(map[api.ImgRequest]uuid.UUID)
-	if gameInfo.ImgRequest >= 0 {
+	if *gameInfo.ImgRequest >= 0 {
 		imgID, err := db.CreateImageMetadata(tx, ctx, owner)
 		if err != nil {
 			return session.Game{}, nil, api.Errorf(api.ErrInternal, "failed to create img metadata: %v", err.Error())
 		}
 		game.ImageId = session.ImageId(imgID)
-		imgs[gameInfo.ImgRequest] = imgID.UUID
+		imgs[*gameInfo.ImgRequest] = imgID.UUID
 	}
-	tasks := make([]session.Task, len(gameInfo.Tasks))
-	for i := 0; i < len(gameInfo.Tasks); i++ {
-		t, newImgs, err := toSessionTask(ctx, tx, owner, gameInfo.Tasks[i], imgs)
+	tasks := make([]session.Task, len(*gameInfo.Tasks))
+	for i := 0; i < len(*gameInfo.Tasks); i++ {
+		t, newImgs, err := toSessionTask(ctx, tx, owner, (*gameInfo.Tasks)[i], imgs)
 		if err != nil {
 			return session.Game{}, nil, err
 		}
@@ -54,41 +54,45 @@ func toSessionTask(
 	task schemas.BaseTaskWithImgRequest,
 	imgs map[api.ImgRequest]uuid.UUID,
 ) (session.Task, map[api.ImgRequest]uuid.UUID, error) {
-	sessionImgID, newImgs, err := genSessionImgID(ctx, tx, owner, task.ImgRequest, imgs)
+	sessionImgID, newImgs, err := genSessionImgID(ctx, tx, owner, *task.ImgRequest, imgs)
 	if err != nil {
 		return nil, imgs, err
 	}
 	baseTask := session.BaseTask{
-		Name:         task.Name,
-		Description:  task.Description,
+		Name:         *task.Name,
+		Description:  *task.Description,
 		ImageId:      session.ImageId(sessionImgID),
 		TaskDuration: time.Duration(task.Duration.Secs) * time.Second,
 	}
 
-	switch task.Type {
+	if task.Type == nil {
+		panic("unexpected nil for task type while converting received task to session task")
+	}
+
+	switch *task.Type {
 	case schemas.Photo:
 		return session.PhotoTask{
 			BaseTask:     baseTask,
-			PollDuration: toSessionPollDuration(task.PollDuration),
+			PollDuration: toSessionPollDuration(*task.PollDuration),
 		}, newImgs, nil
 
 	case schemas.Text:
 		return session.TextTask{
 			BaseTask:     baseTask,
-			PollDuration: toSessionPollDuration(task.PollDuration),
+			PollDuration: toSessionPollDuration(*task.PollDuration),
 		}, newImgs, nil
 
 	case schemas.CheckedText:
 		return session.CheckedTextTask{
 			BaseTask: baseTask,
-			Answer:   task.Answer,
+			Answer:   *task.Answer,
 		}, newImgs, nil
 
 	case schemas.Choice:
 		return session.ChoiceTask{
 			BaseTask:  baseTask,
-			Options:   task.Options,
-			AnswerIdx: int(task.AnswerIndex),
+			Options:   *task.Options,
+			AnswerIdx: int(*task.AnswerIndex),
 		}, newImgs, nil
 
 	default:

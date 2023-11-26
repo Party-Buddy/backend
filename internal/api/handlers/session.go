@@ -126,7 +126,11 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	switch baseReq.GameType {
+	if baseReq.GameType == nil {
+		panic("unexpected nil for game type")
+	}
+
+	switch *baseReq.GameType {
 	case schemas.Public:
 		var publicReq schemas.PublicCreateSessionRequest
 		err = api.Parse(r.Context(), &publicReq, bytes, false)
@@ -156,7 +160,7 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 	encoder := json.NewEncoder(w)
 	tx := middleware.TxFromContext(r.Context())
 
-	game, err := gameIDToSessionGame(r.Context(), tx, publicReq.GameID)
+	game, err := gameIDToSessionGame(r.Context(), tx, *publicReq.GameID)
 	if err != nil {
 		var dto *api.Error
 		errors.As(err, &dto)
@@ -186,8 +190,8 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 		&game,
 		session.ClientId(authInfo.ID),
 		"remove", // TODO: remove
-		publicReq.RequireReady,
-		int(publicReq.PlayerCount))
+		*publicReq.RequireReady,
+		int(*publicReq.PlayerCount))
 	if err != nil {
 		log.Printf("request: %v %v -> err creating session: %v", r.Method, r.URL.String(), err.Error())
 		w.Header().Set("Content-Type", "application/json")
@@ -218,7 +222,7 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 	tx := middleware.TxFromContext(r.Context())
 	authInfo := middleware.AuthInfoFromContext(r.Context())
 
-	game, imgResps, err := toSessionGame(r.Context(), tx, authInfo.ID, privateReq.Game)
+	game, imgResps, err := toSessionGame(r.Context(), tx, authInfo.ID, *privateReq.Game)
 	if err != nil {
 		var dto *api.Error
 		errors.As(err, &dto)
@@ -242,7 +246,8 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 		&game,
 		session.ClientId(authInfo.ID),
 		"remove",
-		privateReq.RequireReady, int(privateReq.PlayerCount))
+		*privateReq.RequireReady,
+		int(*privateReq.PlayerCount))
 	if err != nil {
 		log.Printf("request: %v %v -> err creating session: %v", r.Method, r.URL.String(), err.Error())
 		w.Header().Set("Content-Type", "application/json")
