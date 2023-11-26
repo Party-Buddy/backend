@@ -14,7 +14,7 @@ type AwaitingPlayersState struct {
 	InviteCode InviteCode
 
 	// A set of players who expressed their readiness.
-	PlayersReady map[PlayerId]struct{}
+	PlayersReady map[PlayerID]struct{}
 
 	// Whether all players need to be ready before the game can start.
 	RequireReady bool
@@ -22,7 +22,7 @@ type AwaitingPlayersState struct {
 	// The creator of the session.
 	// While waiting for players, they have additional privileges: for exmaple, they can remove people from the session.
 	// Of course, with great power comes great responsibility: if this player leaves, the session will be closed.
-	Owner PlayerId
+	Owner PlayerID
 }
 
 func (*AwaitingPlayersState) isState() {}
@@ -46,10 +46,10 @@ type TaskStartedState struct {
 	Deadline time.Time
 
 	// The players' current answers.
-	Answers map[PlayerId]TaskAnswer
+	Answers map[PlayerID]TaskAnswer
 
 	// A set of players that expressed their readiness.
-	Ready map[PlayerId]struct{}
+	Ready map[PlayerID]struct{}
 }
 
 func (*TaskStartedState) isState() {}
@@ -67,7 +67,7 @@ type PollStartedState struct {
 	Options []PollOption
 
 	// Which options (represented by their indices into `options`) people chose.
-	Votes map[PlayerId]OptionIdx
+	Votes map[PlayerID]OptionIdx
 }
 
 func (*PollStartedState) isState() {}

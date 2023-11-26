@@ -37,7 +37,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		if !found {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			dto := api.Errorf(api.ErrUserIdInvalid, "provided user id is not valid")
+			dto := api.Errorf(api.ErrUserIDInvalid, "provided user id is not valid")
 			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			_ = encoder.Encode(dto)
 			return
@@ -47,7 +47,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
-			dto := api.Errorf(api.ErrUserIdInvalid, "provided user id is not valid")
+			dto := api.Errorf(api.ErrUserIDInvalid, "provided user id is not valid")
 			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			_ = encoder.Encode(dto)
 			return

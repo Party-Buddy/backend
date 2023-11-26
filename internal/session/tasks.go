@@ -7,7 +7,7 @@ import "time"
 type Task interface {
 	GetName() string
 	GetDescription() string
-	GetImageId() ImageId
+	GetImageID() ImageID
 	GetTaskDuration() time.Duration
 	isTask() // an unexported marker method to indicate a type is in fact a task
 }
@@ -15,7 +15,7 @@ type Task interface {
 type BaseTask struct {
 	Name         string
 	Description  string
-	ImageId      ImageId
+	ImageID      ImageID
 	TaskDuration time.Duration
 }
 
@@ -27,8 +27,8 @@ type PollTask struct {
 
 type PhotoTask PollTask
 
-func (t PhotoTask) GetImageId() ImageId {
-	return t.ImageId
+func (t PhotoTask) GetImageID() ImageID {
+	return t.ImageID
 }
 
 func (t PhotoTask) GetName() string {
@@ -45,8 +45,8 @@ func (t PhotoTask) GetTaskDuration() time.Duration {
 
 type TextTask PollTask
 
-func (t TextTask) GetImageId() ImageId {
-	return t.ImageId
+func (t TextTask) GetImageID() ImageID {
+	return t.ImageID
 }
 
 func (t TextTask) GetName() string {
@@ -67,8 +67,8 @@ type CheckedTextTask struct {
 	Answer string
 }
 
-func (t CheckedTextTask) GetImageId() ImageId {
-	return t.ImageId
+func (t CheckedTextTask) GetImageID() ImageID {
+	return t.ImageID
 }
 
 func (t CheckedTextTask) GetName() string {
@@ -90,8 +90,8 @@ type ChoiceTask struct {
 	AnswerIdx int
 }
 
-func (t ChoiceTask) GetImageId() ImageId {
-	return t.ImageId
+func (t ChoiceTask) GetImageID() ImageID {
+	return t.ImageID
 }
 
 func (t ChoiceTask) GetName() string {
@@ -126,7 +126,7 @@ type TaskAnswer interface {
 }
 
 type (
-	PhotoTaskAnswer   ImageId
+	PhotoTaskAnswer   ImageID
 	TextTaskAnswer    string
 	CheckedTextAnswer string
 	ChoiceTaskAnswer  int
@@ -142,13 +142,13 @@ func (ChoiceTaskAnswer) isTaskAnswer()  {}
 type PollDurationer interface {
 	// PollDuration calculates a poll duration for the given session.
 	// The manager mutex must be locked before calling this method.
-	PollDuration(s *UnsafeStorage, sid SessionId) time.Duration
+	PollDuration(s *UnsafeStorage, sid SessionID) time.Duration
 }
 
 // A FixedPollDuration computes a duration that does not depend on the session state.
 type FixedPollDuration time.Duration
 
-func (d FixedPollDuration) PollDuration(s *UnsafeStorage, sid SessionId) time.Duration {
+func (d FixedPollDuration) PollDuration(s *UnsafeStorage, sid SessionID) time.Duration {
 	return time.Duration(d)
 }
 
@@ -156,6 +156,6 @@ func (d FixedPollDuration) PollDuration(s *UnsafeStorage, sid SessionId) time.Du
 // The total duration is calculated as `playerCount * timePerPlayer`.
 type DynamicPollDuration time.Duration
 
-func (d DynamicPollDuration) PollDuration(s *UnsafeStorage, sid SessionId) time.Duration {
+func (d DynamicPollDuration) PollDuration(s *UnsafeStorage, sid SessionID) time.Duration {
 	return time.Duration(d) * time.Duration(s.PlayerCount(sid))
 }

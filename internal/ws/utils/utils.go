@@ -10,11 +10,11 @@ func GenBaseMessage(kind *ws.MessageKind) ws.BaseMessage {
 	return ws.BaseMessage{Kind: kind, Time: (*ws.Time)(&now)}
 }
 
-func GenMessageError(refID *ws.MessageId, code ws.ErrorKind, msg string) ws.MessageError {
+func GenMessageError(refID *ws.MessageID, code ws.ErrorKind, msg string) ws.MessageError {
 	return ws.MessageError{
 		BaseMessage: GenBaseMessage(&ws.MsgKindError),
 		Error: ws.Error{
-			RefId:   refID,
+			RefID:   refID,
 			Code:    code,
 			Message: msg,
 		},

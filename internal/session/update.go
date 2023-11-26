@@ -9,7 +9,7 @@ type updateMsg interface {
 }
 
 type updateMsgPlayerAdded struct {
-	playerId PlayerId
+	playerID PlayerID
 }
 
 func (*updateMsgPlayerAdded) isUpdateMsg() {}
@@ -24,7 +24,7 @@ func (updateMsgChangeStateTo) isUpdateMsg() {}
 
 type sessionUpdater struct {
 	m   *Manager
-	sid SessionId
+	sid SessionID
 	rx  <-chan updateMsg
 }
 
@@ -35,6 +35,10 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 			return nil
 
 		case msg := <-u.rx:
+			if msg == nil {
+				return nil
+			}
+
 			switch msg := msg.(type) {
 			case *updateMsgPlayerAdded:
 				// TODO: do something?

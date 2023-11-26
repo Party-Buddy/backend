@@ -34,7 +34,7 @@ func toSessionGame(
 				LogMessage: fmt.Sprintf("failed to create img metadata: %s", err),
 			}
 		}
-		game.ImageId = session.ImageId(imgID)
+		game.ImageID = session.ImageID(imgID)
 		imgs[*gameInfo.ImgRequest] = imgID.UUID
 	}
 	tasks := make([]session.Task, len(*gameInfo.Tasks))
@@ -67,7 +67,7 @@ func toSessionTask(
 	baseTask := session.BaseTask{
 		Name:         *task.Name,
 		Description:  *task.Description,
-		ImageId:      session.ImageId(sessionImgID),
+		ImageID:      session.ImageID(sessionImgID),
 		TaskDuration: time.Duration(task.Duration.Secs) * time.Second,
 	}
 

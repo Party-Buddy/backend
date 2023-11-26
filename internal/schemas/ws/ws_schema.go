@@ -42,9 +42,9 @@ func (m MessageKind) MarshalText() ([]byte, error) {
 	return []byte(m), nil
 }
 
-type MessageId uint32
+type MessageID uint32
 
-func (id MessageId) String() string {
+func (id MessageID) String() string {
 	return fmt.Sprint(uint32(id))
 }
 
@@ -57,24 +57,24 @@ func (t Time) MarshalJSON() ([]byte, error) {
 }
 
 type BaseMessage struct {
-	MsgId *MessageId   `json:"msg-id"`
+	MsgID *MessageID   `json:"msg-id"`
 	Kind  *MessageKind `json:"kind"`
 	Time  *Time        `json:"time"`
 }
 
-func (m *BaseMessage) GetMsgID() MessageId {
-	return *m.MsgId
+func (m *BaseMessage) GetMsgID() MessageID {
+	return *m.MsgID
 }
 
-func (m *BaseMessage) SetMsgID(id MessageId) {
-	m.MsgId = &id
+func (m *BaseMessage) SetMsgID(id MessageID) {
+	m.MsgID = &id
 }
 
 func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
 	return f.
-		Is(validate.FieldValue(m.MsgId, "msg-id", "msg-id").Set()).
+		Is(validate.FieldValue(m.MsgID, "msg-id", "msg-id").Set()).
 		Is(validate.FieldValue(m.Kind, "kind", "kind").Set()).
 		Is(validate.FieldValue(m.Time, "time", "time").Set())
 }
@@ -83,7 +83,7 @@ func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 type RecvMessage interface {
 	validate.Validator
 	isRecvMessage()
-	GetMsgID() MessageId
+	GetMsgID() MessageID
 }
 
 type ErrorKind string
@@ -119,16 +119,16 @@ var (
 )
 
 type Error struct {
-	RefId   *MessageId `json:"ref-id"`
+	RefID   *MessageID `json:"ref-id"`
 	Code    ErrorKind  `json:"code"`
 	Message string     `json:"message"`
 }
 
 func (e *Error) Error() string {
-	if e.RefId == nil {
+	if e.RefID == nil {
 		return fmt.Sprintf("%v (code `%v`)", e.Message, e.Code)
 	} else {
-		return fmt.Sprintf("%v (code `%v`, reply to msg %v)", e.Message, e.Code, e.RefId)
+		return fmt.Sprintf("%v (code `%v`, reply to msg %v)", e.Message, e.Code, e.RefID)
 	}
 }
 
@@ -227,12 +227,12 @@ func (*MessageTaskAnswer) isRecvMessage() {}
 func (*MessagePollChoose) isRecvMessage() {}
 
 type UnknownMessageError struct {
-	refId MessageId
+	refID MessageID
 	kind  MessageKind
 }
 
-func (e *UnknownMessageError) RefId() MessageId {
-	return e.refId
+func (e *UnknownMessageError) RefID() MessageID {
+	return e.refID
 }
 
 func (e *UnknownMessageError) Kind() MessageKind {
@@ -256,12 +256,12 @@ func (e *DecodeError) Unwrap() error {
 }
 
 type ValidationError struct {
-	refId MessageId
+	refID MessageID
 	cause *valgo.Error
 }
 
-func (e *ValidationError) RefId() MessageId {
-	return e.refId
+func (e *ValidationError) RefID() MessageID {
+	return e.refID
 }
 
 func (e *ValidationError) Error() string {
@@ -290,7 +290,7 @@ func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 	}
 	if val := base.Validate(ctx); !val.Valid() {
 		return nil, &ValidationError{
-			refId: *base.MsgId,
+			refID: *base.MsgID,
 			cause: val.Error().(*valgo.Error),
 		}
 	}
@@ -323,7 +323,7 @@ func ParseMessage(ctx context.Context, data []byte) (RecvMessage, error) {
 
 	if val := msg.Validate(ctx); !val.Valid() {
 		return nil, &ValidationError{
-			refId: *base.MsgId,
+			refID: *base.MsgID,
 			cause: val.Error().(*valgo.Error),
 		}
 	}
@@ -336,7 +336,7 @@ func ParseErrorToMessageError(err error) error {
 	var typeError *json.UnmarshalTypeError
 	if errors.As(err, &typeError) {
 		return &Error{
-			RefId:   nil,
+			RefID:   nil,
 			Code:    ErrMalformedMsg,
 			Message: fmt.Sprintf("in field `%s`: %s has an illegal type", typeError.Field, typeError.Value),
 		}
@@ -345,7 +345,7 @@ func ParseErrorToMessageError(err error) error {
 	var decodeError *DecodeError
 	if errors.As(err, &decodeError) {
 		return &Error{
-			RefId:   nil,
+			RefID:   nil,
 			Code:    ErrMalformedMsg,
 			Message: fmt.Sprintf("message is not valid JSON: %s", decodeError),
 		}
@@ -353,9 +353,9 @@ func ParseErrorToMessageError(err error) error {
 
 	var unknownMessageError *UnknownMessageError
 	if errors.As(err, &unknownMessageError) {
-		refId := unknownMessageError.RefId()
+		refID := unknownMessageError.RefID()
 		return &Error{
-			RefId:   &refId,
+			RefID:   &refID,
 			Code:    ErrProtoViolation,
 			Message: fmt.Sprintf("unacceptable message kind: `%s`", unknownMessageError.Kind()),
 		}
@@ -363,21 +363,21 @@ func ParseErrorToMessageError(err error) error {
 
 	var validationError *ValidationError
 	if errors.As(err, &validationError) {
-		refId := validationError.RefId()
+		refID := validationError.RefID()
 		message := "malformed message"
 		if fieldName, msg, ok := validate.ExtractValgoErrorFields(validationError.ValgoError()); ok {
 			message = fmt.Sprintf("in field `%s`: %s", fieldName, msg)
 		}
 
 		return &Error{
-			RefId:   &refId,
+			RefID:   &refID,
 			Code:    ErrMalformedMsg,
 			Message: message,
 		}
 	}
 
 	return &Error{
-		RefId:   nil,
+		RefID:   nil,
 		Code:    ErrInternal,
 		Message: "internal failure while decoding message",
 	}
@@ -385,13 +385,13 @@ func ParseErrorToMessageError(err error) error {
 
 type RespMessage interface {
 	isRespMessage()
-	SetMsgID(id MessageId)
+	SetMsgID(id MessageID)
 }
 
 type MessageJoined struct {
 	BaseMessage
 
-	RefID    *MessageId          `json:"ref-id"`
+	RefID    *MessageID          `json:"ref-id"`
 	PlayerID uint32              `json:"player-id"`
 	Sid      uuid.UUID           `json:"session-id"`
 	Game     schemas.GameDetails `json:"game"`

@@ -22,7 +22,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	manager := middleware.ManagerFromContext(r.Context())
 
-	var sid session.SessionId
+	var sid session.SessionID
 	strID := r.URL.Query().Get("session-id")
 	if strID == "" {
 		code := r.URL.Query().Get("invite-code")
@@ -34,7 +34,11 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			return
 		}
-		id, ok := manager.SidByInviteCode(code)
+
+		var ok bool
+		manager.Storage().Atomically(func(s *session.UnsafeStorage) {
+			sid, ok = s.SidByInviteCode(session.InviteCode(code))
+		})
 		if !ok {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
@@ -43,7 +47,6 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			return
 		}
-		sid = id
 	} else {
 		id, err := uuid.Parse(strID)
 		if err != nil {
@@ -54,8 +57,13 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			return
 		}
-		sid = session.SessionId(id)
-		if !manager.SessionExists(sid) {
+		sid = session.SessionID(id)
+
+		var exists bool
+		manager.Storage().Atomically(func(s *session.UnsafeStorage) {
+			exists = s.SessionExists(sid)
+		})
+		if !exists {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "invalid invite code or session identifier")
@@ -94,7 +102,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	info := ws.NewConnInfo(manager, wsConn, session.ClientId(authInfo.ID), sid)
+	info := ws.NewConnInfo(manager, wsConn, session.ClientID(authInfo.ID), sid)
 	info.StartReadAndWriteConn(r.Context())
 	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
 }
@@ -177,7 +185,7 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 		r.Context(),
 		tx,
 		&game,
-		session.ClientId(authInfo.ID),
+		session.ClientID(authInfo.ID),
 		"remove", // TODO: remove
 		*publicReq.RequireReady,
 		int(*publicReq.PlayerCount))
@@ -227,7 +235,7 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 		r.Context(),
 		tx,
 		&game,
-		session.ClientId(authInfo.ID),
+		session.ClientID(authInfo.ID),
 		"remove", // TODO: remove
 		*privateReq.RequireReady,
 		int(*privateReq.PlayerCount))

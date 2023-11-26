@@ -19,7 +19,7 @@ func (e ErrorKind) MarshalText() ([]byte, error) {
 
 // AuthorizationErrorKind codes
 var (
-	ErrUserIdInvalid       ErrorKind = "user-id-invalid"
+	ErrUserIDInvalid       ErrorKind = "user-id-invalid"
 	ErrOnlyOwnerAllowed    ErrorKind = "only-owned-allowed"
 	ErrAuthRequired        ErrorKind = "auth-required"
 	ErrNotEnoughPrivileges ErrorKind = "not-enough-privileges"
