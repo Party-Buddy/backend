@@ -31,7 +31,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusBadRequest)
 			dto := api.Errorf(api.ErrParamMissing, "no query params provided")
 			_ = encoder.Encode(dto)
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			return
 		}
 		id, ok := manager.SidByInviteCode(code)
@@ -40,7 +40,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "invalid invite code or session identifier")
 			_ = encoder.Encode(dto)
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			return
 		}
 		sid = id
@@ -51,7 +51,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "invalid invite code or session identifier")
 			_ = encoder.Encode(dto)
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			return
 		}
 		sid = session.SessionId(id)
@@ -60,7 +60,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 			w.WriteHeader(http.StatusNotFound)
 			dto := api.Errorf(api.ErrNotFound, "invalid invite code or session identifier")
 			_ = encoder.Encode(dto)
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			return
 		}
 	}
@@ -72,7 +72,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusUpgradeRequired)
 		dto := api.Errorf(api.ErrInvalidUpgrade, "bad Upgrade Header")
 		_ = encoder.Encode(dto)
-		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("request: %v %v -> err after upgrade: %v", r.Method, r.URL.String(), err.Error())
+		log.Printf("request: %v %v -> err after upgrade: %v", r.Method, r.URL.String(), err)
 		return
 	}
 
@@ -110,7 +110,7 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusInternalServerError)
 		dto := api.Errorf(api.ErrInternal, "failed to read request body")
 		_ = encoder.Encode(dto)
-		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		var dto *api.Error
 		errors.As(err, &dto)
 		_ = encoder.Encode(dto)
-		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 		return
 	}
 
@@ -153,7 +153,7 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	var dto *api.Error
 	errors.As(err, &dto)
 	_ = encoder.Encode(dto)
-	log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+	log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 }
 
 func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.PublicCreateSessionRequest) {
@@ -162,23 +162,12 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 
 	game, err := gameIDToSessionGame(r.Context(), tx, *publicReq.GameID)
 	if err != nil {
-		var dto *api.Error
-		errors.As(err, &dto)
-		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		var errConv *api.ErrorFromConverters
+		errors.As(err, &errConv)
+		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, errConv)
 		w.Header().Set("Content-Type", "application/json")
-		switch dto.Kind {
-		case api.ErrInternal:
-			dto.Message = ""
-			w.WriteHeader(http.StatusInternalServerError)
-
-		case api.ErrNotFound:
-			dto.Message = "game not found"
-			w.WriteHeader(http.StatusNotFound)
-
-		default:
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		_ = encoder.Encode(dto)
+		w.WriteHeader(errConv.StatusCode)
+		_ = encoder.Encode(errConv.ApiError)
 		return
 	}
 
@@ -193,7 +182,7 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 		*publicReq.RequireReady,
 		int(*publicReq.PlayerCount))
 	if err != nil {
-		log.Printf("request: %v %v -> err creating session: %v", r.Method, r.URL.String(), err.Error())
+		log.Printf("request: %v %s -> err creating session: %v", r.Method, r.URL, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		dto := api.Errorf(api.ErrInternal, "failed to create session")
@@ -202,7 +191,7 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 	}
 	err = tx.Commit(r.Context())
 	if err != nil {
-		log.Printf("request: %v %v -> err creating session: %s", r.Method, r.URL.String(), err)
+		log.Printf("request: %v %s -> err creating session: %v", r.Method, r.URL, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		dto := api.Errorf(api.ErrInternal, "failed to create session")
@@ -211,7 +200,7 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 	}
 
 	req := api.SessionCreateResponse{InviteCode: string(code), ImgRequests: []api.ImgReqResponse{}}
-	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
+	log.Printf("request: %v %s -> OK", r.Method, r.URL)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = encoder.Encode(req)
@@ -224,18 +213,12 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 
 	game, imgResps, err := toSessionGame(r.Context(), tx, authInfo.ID, *privateReq.Game)
 	if err != nil {
-		var dto *api.Error
-		errors.As(err, &dto)
-		log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+		var errConv *api.ErrorFromConverters
+		errors.As(err, &errConv)
+		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, errConv)
 		w.Header().Set("Content-Type", "application/json")
-		switch dto.Kind {
-		case api.ErrTaskInvalid:
-			w.WriteHeader(http.StatusBadRequest)
-
-		default:
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		_ = encoder.Encode(dto)
+		w.WriteHeader(errConv.StatusCode)
+		_ = encoder.Encode(errConv.ApiError)
 		return
 	}
 
@@ -245,11 +228,11 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 		tx,
 		&game,
 		session.ClientId(authInfo.ID),
-		"remove",
+		"remove", // TODO: remove
 		*privateReq.RequireReady,
 		int(*privateReq.PlayerCount))
 	if err != nil {
-		log.Printf("request: %v %v -> err creating session: %v", r.Method, r.URL.String(), err.Error())
+		log.Printf("request: %v %s -> err creating session: %v", r.Method, r.URL, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		dto := api.Errorf(api.ErrInternal, "failed to create session")
@@ -258,7 +241,7 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 	}
 	err = tx.Commit(r.Context())
 	if err != nil {
-		log.Printf("request: %v %v -> err creating session: %s", r.Method, r.URL.String(), err)
+		log.Printf("request: %v %s -> err creating session: %v", r.Method, r.URL, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		dto := api.Errorf(api.ErrInternal, "failed to create session")
@@ -267,6 +250,7 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 	}
 
 	req := api.SessionCreateResponse{InviteCode: string(code), ImgRequests: imgResps}
+	log.Printf("request: %v %s -> OK", r.Method, r.URL)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = encoder.Encode(req)

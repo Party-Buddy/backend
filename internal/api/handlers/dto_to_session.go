@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"net/http"
 	"party-buddy/internal/configuration"
 	"party-buddy/internal/db"
 	"party-buddy/internal/schemas"
@@ -26,7 +28,11 @@ func toSessionGame(
 	if *gameInfo.ImgRequest >= 0 {
 		imgID, err := db.CreateImageMetadata(tx, ctx, owner)
 		if err != nil {
-			return session.Game{}, nil, api.Errorf(api.ErrInternal, "failed to create img metadata: %v", err.Error())
+			return session.Game{}, nil, api.ErrorFromConverters{
+				ApiError:   *api.Errorf(api.ErrInternal, ""),
+				StatusCode: http.StatusInternalServerError,
+				LogMessage: fmt.Sprintf("failed to create img metadata: %s", err),
+			}
 		}
 		game.ImageId = session.ImageId(imgID)
 		imgs[*gameInfo.ImgRequest] = imgID.UUID
@@ -96,7 +102,11 @@ func toSessionTask(
 		}, newImgs, nil
 
 	default:
-		return nil, imgs, api.Errorf(api.ErrTaskInvalid, "unknown task type")
+		return nil, imgs, api.ErrorFromConverters{
+			ApiError:   *api.Errorf(api.ErrTaskInvalid, "unknown task type: %s", *task.Type),
+			StatusCode: http.StatusBadRequest,
+			LogMessage: fmt.Sprintf("unknown task type: %s", *task.Type),
+		}
 	}
 }
 
@@ -130,7 +140,11 @@ func genSessionImgID(
 		} else {
 			imgID, err := db.CreateImageMetadata(tx, ctx, owner)
 			if err != nil {
-				return sessionImgID, imgs, api.Errorf(api.ErrInternal, "failed to create img metadata: %v", err.Error())
+				return sessionImgID, imgs, api.ErrorFromConverters{
+					ApiError:   *api.Errorf(api.ErrInternal, ""),
+					StatusCode: http.StatusInternalServerError,
+					LogMessage: fmt.Sprintf("failed to create img metadata: %s", err),
+				}
 			}
 			sessionImgID = imgID
 			imgs[imgReq] = imgID.UUID

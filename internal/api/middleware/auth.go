@@ -29,7 +29,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			dto := api.Errorf(api.ErrAuthRequired, "authentication required")
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -38,7 +38,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			dto := api.Errorf(api.ErrUserIdInvalid, "provided user id is not valid")
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -48,7 +48,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			dto := api.Errorf(api.ErrUserIdInvalid, "provided user id is not valid")
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), dto.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
 			_ = encoder.Encode(dto)
 			return
 		}
@@ -60,7 +60,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			dto := api.Errorf(api.ErrInternal, "internal server error while getting user")
-			log.Printf("request: %v %v -> err: %v", r.Method, r.URL.String(), err.Error())
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, err)
 			_ = encoder.Encode(dto)
 			return
 		}

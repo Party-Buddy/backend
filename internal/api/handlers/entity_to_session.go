@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"net/http"
 	"party-buddy/internal/db"
 	"party-buddy/internal/schemas/api"
 	"party-buddy/internal/session"
@@ -14,7 +16,11 @@ func gameIDToSessionGame(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) (sess
 	game := session.Game{}
 	gameEntity, err := db.GameByID(ctx, tx, gameID)
 	if err != nil {
-		return session.Game{}, api.Errorf(api.ErrNotFound, err.Error())
+		return session.Game{}, api.ErrorFromConverters{
+			ApiError:   *api.Errorf(api.ErrNotFound, "not found"),
+			StatusCode: http.StatusNotFound,
+			LogMessage: fmt.Sprintf("failed to get game by id: %s", err),
+		}
 	}
 	game.Name = gameEntity.Name
 	game.Description = gameEntity.Description
@@ -23,7 +29,11 @@ func gameIDToSessionGame(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) (sess
 
 	taskEntities, err := db.GetGameTasksByID(ctx, tx, gameID)
 	if err != nil {
-		return session.Game{}, api.Errorf(api.ErrInternal, err.Error())
+		return session.Game{}, api.ErrorFromConverters{
+			ApiError:   *api.Errorf(api.ErrInternal, ""),
+			StatusCode: http.StatusInternalServerError,
+			LogMessage: fmt.Sprintf("failed to get game by id: %s", err),
+		}
 	}
 	tasks := make([]session.Task, len(taskEntities))
 	for i := 0; i < len(taskEntities); i++ {
@@ -91,7 +101,11 @@ func entityToSessionTask(ctx context.Context, tx pgx.Tx, entity db.TaskEntity) (
 		}, nil
 
 	default:
-		return nil, api.Errorf(api.ErrInternal, "unknown task kind in database")
+		return nil, api.ErrorFromConverters{
+			ApiError:   *api.Errorf(api.ErrInternal, ""),
+			StatusCode: http.StatusInternalServerError,
+			LogMessage: fmt.Sprintf("unknown task kind in database: %s", entity.TaskKind),
+		}
 	}
 }
 

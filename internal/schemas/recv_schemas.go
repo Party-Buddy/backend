@@ -46,7 +46,8 @@ type PublicCreateSessionRequest struct {
 
 func (r *PublicCreateSessionRequest) Validate(ctx context.Context) *valgo.Validation {
 	return r.BaseCreateSessionRequest.Validate(ctx).
-		Is(valgo.StringP(r.GameType, "game-type", "game-type").EqualTo(Public))
+		Is(valgo.StringP(r.GameType, "game-type", "game-type").EqualTo(Public)).
+		Is(validate.FieldValue(r.GameID, "game-id", "game-id").Set())
 }
 
 type PrivateCreateSessionRequest struct {
@@ -55,9 +56,13 @@ type PrivateCreateSessionRequest struct {
 }
 
 func (r *PrivateCreateSessionRequest) Validate(ctx context.Context) *valgo.Validation {
-	return r.BaseCreateSessionRequest.Validate(ctx).
+	v := r.BaseCreateSessionRequest.Validate(ctx).
 		Is(valgo.StringP(r.GameType, "game-type", "game-type").EqualTo(Private)).
-		Merge(r.Game.Validate(ctx))
+		Is(validate.FieldValue(r.Game, "game", "game").Set())
+	if r.Game == nil {
+		return v
+	}
+	return v.Merge(r.Game.Validate(ctx))
 }
 
 type FullGameInfo struct {
@@ -74,7 +79,7 @@ func (info *FullGameInfo) Validate(ctx context.Context) *valgo.Validation {
 		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
 	v = v.Is(valgo.StringP(info.Description, "description", "description").Not().Nil().
 		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
-	v = v.Is(validate.FieldValue(info.Tasks).Set()).
+	v = v.Is(validate.FieldValue(info.Tasks, "tasks", "tasks").Set()).
 		Is(valgo.Any(info.Tasks).Passing(func(v any) bool {
 			tasks := v.(*[]BaseTaskWithImgRequest)
 			if tasks == nil {
@@ -110,7 +115,7 @@ type BaseTaskWithImgRequest struct {
 	// Options from ChoiceTask
 	Options *[]string `json:"options,omitempty"`
 
-	//AnswerIdx from ChoiceTask
+	// AnswerIndex from ChoiceTask
 	AnswerIndex *uint8 `json:"answer-idx,omitempty"`
 }
 
@@ -141,7 +146,7 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 	switch *t.Type {
 	case Photo:
 		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(Photo)).
-			Is(validate.FieldValue(t.PollDuration).Set()).
+			Is(validate.FieldValue(t.PollDuration, "poll-duration", "poll-duration").Set()).
 			Is(valgo.Any(t.PollDuration, "poll-duration", "poll-duration").Passing(func(v any) bool {
 				d := v.(*PollDuration)
 				if d == nil {
@@ -153,7 +158,7 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 
 	case Text:
 		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(Text)).
-			Is(validate.FieldValue(t.PollDuration).Set()).
+			Is(validate.FieldValue(t.PollDuration, "poll-duration", "poll-duration").Set()).
 			Is(valgo.Any(t.PollDuration, "poll-duration", "poll-duration").Passing(func(v any) bool {
 				d := v.(*PollDuration)
 				if d == nil {
@@ -167,7 +172,7 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(Choice)).
 			Is(valgo.Uint8P(t.AnswerIndex, "answer", "answer").Not().Nil().
 				LessThan(configuration.OptionsCount)).
-			Is(validate.FieldValue(t.Options).Set()).
+			Is(validate.FieldValue(t.Options, "options", "options").Set()).
 			Is(valgo.Any(t.Options, "options", "options").Passing(func(v any) bool {
 				opts := v.(*[]string)
 				if opts == nil {

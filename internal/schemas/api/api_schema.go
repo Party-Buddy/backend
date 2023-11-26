@@ -78,11 +78,11 @@ func Errorf(kind ErrorKind, format string, a ...any) *Error {
 	}
 }
 
-func (e *Error) Error() string {
+func (e Error) Error() string {
 	return fmt.Sprintf("%v (code `%v`)", e.Message, e.Kind)
 }
 
-func (e *Error) String() string {
+func (e Error) String() string {
 	return e.Message
 }
 
@@ -147,4 +147,14 @@ type SessionCreateResponse struct {
 type ImgReqResponse struct {
 	ImgRequest ImgRequest `json:"img-request"`
 	ImgURI     string     `json:"img-uri"`
+}
+
+type ErrorFromConverters struct {
+	ApiError   Error
+	StatusCode int
+	LogMessage string
+}
+
+func (e ErrorFromConverters) Error() string {
+	return fmt.Sprintf("%v, responsing with status code: %v", e.LogMessage, e.StatusCode)
 }
