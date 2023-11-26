@@ -17,12 +17,12 @@ func toSessionGame(
 	tx pgx.Tx,
 	owner uuid.UUID,
 	gameInfo schemas.FullGameInfo,
-) (session.Game, []schemas.ImgReqResponse, error) {
+) (session.Game, []api.ImgReqResponse, error) {
 
 	game := session.Game{}
 	game.Name = gameInfo.Name
 	game.Description = gameInfo.Description
-	imgs := make(map[schemas.ImgRequest]uuid.UUID)
+	imgs := make(map[api.ImgRequest]uuid.UUID)
 	if gameInfo.ImgRequest >= 0 {
 		imgID, err := db.CreateImageMetadata(tx, ctx, owner)
 		if err != nil {
@@ -40,9 +40,9 @@ func toSessionGame(
 		imgs = newImgs
 		tasks = append(tasks, t)
 	}
-	imgResps := make([]schemas.ImgReqResponse, 0)
+	imgResps := make([]api.ImgReqResponse, 0)
 	for k, v := range imgs {
-		imgResps = append(imgResps, schemas.ImgReqResponse{ImgRequest: k, ImgURI: configuration.GenImgURI(v)})
+		imgResps = append(imgResps, api.ImgReqResponse{ImgRequest: k, ImgURI: configuration.GenImgURI(v)})
 	}
 	return game, imgResps, nil
 }
@@ -52,8 +52,8 @@ func toSessionTask(
 	tx pgx.Tx,
 	owner uuid.UUID,
 	task schemas.BaseTaskWithImgRequest,
-	imgs map[schemas.ImgRequest]uuid.UUID,
-) (session.Task, map[schemas.ImgRequest]uuid.UUID, error) {
+	imgs map[api.ImgRequest]uuid.UUID,
+) (session.Task, map[api.ImgRequest]uuid.UUID, error) {
 	sessionImgID, newImgs, err := genSessionImgID(ctx, tx, owner, task.ImgRequest, imgs)
 	if err != nil {
 		return nil, imgs, err
@@ -114,9 +114,9 @@ func genSessionImgID(
 	ctx context.Context,
 	tx pgx.Tx,
 	owner uuid.UUID,
-	imgReq schemas.ImgRequest,
-	imgs map[schemas.ImgRequest]uuid.UUID,
-) (uuid.NullUUID, map[schemas.ImgRequest]uuid.UUID, error) {
+	imgReq api.ImgRequest,
+	imgs map[api.ImgRequest]uuid.UUID,
+) (uuid.NullUUID, map[api.ImgRequest]uuid.UUID, error) {
 
 	var sessionImgID uuid.NullUUID
 	if imgReq >= 0 {

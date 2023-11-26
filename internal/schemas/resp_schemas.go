@@ -52,13 +52,3 @@ type GameDetails struct {
 
 	Tasks []BaseTaskWithImg `json:"tasks"`
 }
-
-type SessionCreateResponse struct {
-	InviteCode  string           `json:"invite-code"`
-	ImgRequests []ImgReqResponse `json:"img-requests"`
-}
-
-type ImgReqResponse struct {
-	ImgRequest ImgRequest `json:"img-request"`
-	ImgURI     string     `json:"img-uri"`
-}

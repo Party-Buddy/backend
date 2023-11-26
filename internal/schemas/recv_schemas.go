@@ -6,12 +6,15 @@ import (
 	"github.com/cohesivestack/valgo"
 	"github.com/google/uuid"
 	"party-buddy/internal/configuration"
-	"party-buddy/internal/util"
+	"party-buddy/internal/schemas/api"
 	"party-buddy/internal/validate"
 	"regexp"
 )
 
-type ImgRequest int8
+var (
+	baseReg        = regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
+	checkedTextReg = regexp.MustCompile(fmt.Sprintf("[%v]", configuration.CheckedTextAnswerTemplate))
+)
 
 type GameType string
 
@@ -59,20 +62,17 @@ func (r *PrivateCreateSessionRequest) Validate(ctx context.Context) *valgo.Valid
 type FullGameInfo struct {
 	Name        string                   `json:"name"`
 	Description string                   `json:"description"`
-	ImgRequest  ImgRequest               `json:"img-request"`
+	ImgRequest  api.ImgRequest           `json:"img-request"`
 	Tasks       []BaseTaskWithImgRequest `json:"tasks"`
 }
 
 func (info *FullGameInfo) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
-	reg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
 
-	info.Name = util.ReplaceEwith2Dots(info.Name)
 	v := f.Is(valgo.String(info.Name, "name", "name").
-		MatchingTo(reg).MaxLength(configuration.MaxNameLength))
-	info.Description = util.ReplaceEwith2Dots(info.Description)
+		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
 	v = v.Is(valgo.String(info.Description, "description", "description").
-		MatchingTo(reg).MaxLength(configuration.MaxDescriptionLength))
+		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
 	v = v.Is(valgo.Any(info.Tasks).Passing(func(v any) bool {
 		tasks := v.([]BaseTaskWithImgRequest)
 		return len(tasks) >= configuration.MinTaskCount && len(tasks) <= configuration.MaxTaskCount
@@ -85,7 +85,7 @@ func (info *FullGameInfo) Validate(ctx context.Context) *valgo.Validation {
 
 type BaseTaskWithImgRequest struct {
 	BaseTask
-	ImgRequest ImgRequest `json:"img-request"`
+	ImgRequest api.ImgRequest `json:"img-request"`
 
 	// Answer from CheckedTextTask
 	Answer string `json:"answer,omitempty"`
@@ -99,13 +99,9 @@ type BaseTaskWithImgRequest struct {
 
 func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
-	baseReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
-	checkedTextReg := regexp.MustCompile(fmt.Sprintf("[%v]", configuration.CheckedTextAnswerTemplate))
 
-	t.Name = util.ReplaceEwith2Dots(t.Name)
 	v := f.Is(valgo.String(t.Name, "name", "name").
 		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
-	t.Description = util.ReplaceEwith2Dots(t.Description)
 	v = v.Is(valgo.String(t.Description, "description", "description").
 		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
 	v = v.

@@ -196,9 +196,17 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 		_ = encoder.Encode(dto)
 		return
 	}
-	defer tx.Commit(r.Context())
+	err = tx.Commit(r.Context())
+	if err != nil {
+		log.Printf("request: %v %v -> err creating session: %s", r.Method, r.URL.String(), err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		dto := api.Errorf(api.ErrInternal, "failed to create session")
+		_ = encoder.Encode(dto)
+		return
+	}
 
-	req := schemas.SessionCreateResponse{InviteCode: string(code), ImgRequests: []schemas.ImgReqResponse{}}
+	req := api.SessionCreateResponse{InviteCode: string(code), ImgRequests: []api.ImgReqResponse{}}
 	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -243,9 +251,17 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 		_ = encoder.Encode(dto)
 		return
 	}
-	defer tx.Commit(r.Context())
+	err = tx.Commit(r.Context())
+	if err != nil {
+		log.Printf("request: %v %v -> err creating session: %s", r.Method, r.URL.String(), err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		dto := api.Errorf(api.ErrInternal, "failed to create session")
+		_ = encoder.Encode(dto)
+		return
+	}
 
-	req := schemas.SessionCreateResponse{InviteCode: string(code), ImgRequests: imgResps}
+	req := api.SessionCreateResponse{InviteCode: string(code), ImgRequests: imgResps}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = encoder.Encode(req)

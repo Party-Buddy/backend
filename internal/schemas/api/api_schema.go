@@ -136,3 +136,15 @@ func Parse(ctx context.Context, target validate.Validator, data []byte, allowUnk
 
 	return nil
 }
+
+type ImgRequest int8
+
+type SessionCreateResponse struct {
+	InviteCode  string           `json:"invite-code"`
+	ImgRequests []ImgReqResponse `json:"img-requests"`
+}
+
+type ImgReqResponse struct {
+	ImgRequest ImgRequest `json:"img-request"`
+	ImgURI     string     `json:"img-uri"`
+}
