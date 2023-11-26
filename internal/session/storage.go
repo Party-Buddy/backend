@@ -106,9 +106,9 @@ func (s *UnsafeStorage) newSession(
 		clients:       make(map[ClientID]PlayerID),
 		bannedClients: make(map[ClientID]struct{}),
 		state: &AwaitingPlayersState{
-			InviteCode:   code,
-			RequireReady: requireReady,
-			Owner:        ownerID,
+			inviteCode:   code,
+			requireReady: requireReady,
+			owner:        ownerID,
 		},
 	}
 	s.inviteCodes[code] = sid
@@ -116,8 +116,8 @@ func (s *UnsafeStorage) newSession(
 	return
 }
 
-// RemoveSession removes a session from the storage.
-func (s *UnsafeStorage) RemoveSession(sid SessionID) {
+// removeSession removes a session from the storage.
+func (s *UnsafeStorage) removeSession(sid SessionID) {
 	// TODO
 }
 
@@ -170,7 +170,7 @@ func (s *UnsafeStorage) Players(sid SessionID) (players []Player) {
 	return
 }
 
-// PlayerTxs returns the Tx fields of each player in a session.
+// PlayerTxs returns a Tx channel for each player in a session.
 func (s *UnsafeStorage) PlayerTxs(sid SessionID) (txs []TxChan) {
 	s.ForEachPlayer(sid, func(player Player) {
 		txs = append(txs, player.Tx)
@@ -206,7 +206,7 @@ func (s *UnsafeStorage) SessionGame(sid SessionID) (game Game, ok bool) {
 }
 
 // SessionState returns a session's current state.
-func (s *UnsafeStorage) SessionState(sid SessionID) State {
+func (s *UnsafeStorage) sessionState(sid SessionID) State {
 	if session := s.sessions[sid]; session != nil {
 		return session.state
 	}
@@ -252,7 +252,7 @@ func (s *UnsafeStorage) banClient(sid SessionID, clientID ClientID) {
 }
 
 // AddPlayer adds a client to a session as another player.
-func (s *UnsafeStorage) AddPlayer(
+func (s *UnsafeStorage) addPlayer(
 	sid SessionID,
 	clientID ClientID,
 	nickname string,

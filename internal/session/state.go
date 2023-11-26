@@ -11,20 +11,20 @@ type State interface {
 // (The invite code expires once the game starts — or the session is closed before it starts if the owner quits.)
 type AwaitingPlayersState struct {
 	// A short code used for session discovery.
-	InviteCode InviteCode
+	inviteCode InviteCode
 
 	// A set of players who expressed their readiness.
-	PlayersReady map[PlayerID]struct{}
+	playersReady map[PlayerID]struct{}
 
 	// Whether all players need to be ready before the game can start.
-	RequireReady bool
+	requireReady bool
 
 	// The creator of the session.
 	// While waiting for players, they have additional privileges: for exmaple, they can remove people from the session.
 	// Of course, with great power comes great responsibility: if this player leaves, the session will be closed.
 	//
 	// NOTE: the owner may not have yet connected to the session!
-	Owner ClientID
+	owner ClientID
 }
 
 func (*AwaitingPlayersState) isState() {}
@@ -33,7 +33,7 @@ func (*AwaitingPlayersState) isState() {}
 // No task is currently underway: we're just giving people time to react and mentally prepare.
 type GameStartedState struct {
 	// When the first start should start.
-	Deadline time.Time
+	deadline time.Time
 }
 
 func (*GameStartedState) isState() {}
@@ -42,16 +42,16 @@ func (*GameStartedState) isState() {}
 // Players are able to update their answers, possibly marking them ready as well.
 type TaskStartedState struct {
 	// The index of the current task.
-	TaskIdx int
+	taskIdx int
 
 	// When the task ends.
-	Deadline time.Time
+	deadline time.Time
 
 	// The players' current answers.
-	Answers map[PlayerID]TaskAnswer
+	answers map[PlayerID]TaskAnswer
 
 	// A set of players that expressed their readiness.
-	Ready map[PlayerID]struct{}
+	ready map[PlayerID]struct{}
 }
 
 func (*TaskStartedState) isState() {}
@@ -60,16 +60,16 @@ func (*TaskStartedState) isState() {}
 // Some tasks do not call for a poll — in that case this state is simply skipped.
 type PollStartedState struct {
 	// The index of the current task.
-	TaskIdx int
+	taskIdx int
 
 	// When the poll ends.
-	Deadline time.Time
+	deadline time.Time
 
 	// The options to choose from.
-	Options []PollOption
+	options []PollOption
 
 	// Which options (represented by their indices into `options`) people chose.
-	Votes map[PlayerID]OptionIdx
+	votes map[PlayerID]OptionIdx
 }
 
 func (*PollStartedState) isState() {}
@@ -78,13 +78,13 @@ func (*PollStartedState) isState() {}
 // This gives players time to reflect on their performance and envy their peers.
 type TaskEndedState struct {
 	// The index of the ended task.
-	TaskIdx int
+	taskIdx int
 
 	// When the next task starts (or, if the ended task was the last one, the game ends).
-	Deadline time.Time
+	deadline time.Time
 
 	// The answers made by players — and the popularity of those answers.
-	Results []AnswerResult
+	results []AnswerResult
 }
 
 func (*TaskEndedState) isState() {}

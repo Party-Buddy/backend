@@ -117,7 +117,7 @@ func (m *Manager) NewSession(
 		}
 		defer func() {
 			if err != nil {
-				s.RemoveSession(sid)
+				s.removeSession(sid)
 			}
 		}()
 
@@ -190,7 +190,7 @@ func (m *Manager) JoinSession(
 			return
 		}
 
-		player := util.Must(s.AddPlayer(sid, clientID, nickname, tx))
+		player := util.Must(s.addPlayer(sid, clientID, nickname, tx))
 		playerID = player.ID
 		m.onJoin(ctx, s, sid, &player, false)
 	})
@@ -238,17 +238,17 @@ func (m *Manager) onJoin(
 	}
 
 	var stateMessage ServerTx
-	switch state := s.SessionState(sid).(type) {
+	switch state := s.sessionState(sid).(type) {
 	case *AwaitingPlayersState:
-		stateMessage = m.makeMsgWaiting(ctx, state.PlayersReady)
+		stateMessage = m.makeMsgWaiting(ctx, state.playersReady)
 	case *GameStartedState:
-		stateMessage = m.makeMsgGameStart(ctx, state.Deadline)
+		stateMessage = m.makeMsgGameStart(ctx, state.deadline)
 	case *TaskStartedState:
-		stateMessage = m.makeMsgTaskStart(ctx, state.TaskIdx, state.Deadline)
+		stateMessage = m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline)
 	case *PollStartedState:
-		stateMessage = m.makeMsgPollStart(ctx, state.TaskIdx, state.Deadline, state.Options)
+		stateMessage = m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
 	case *TaskEndedState:
-		stateMessage = m.makeMsgTaskEnd(ctx, state.TaskIdx, state.Deadline, state.Results)
+		stateMessage = m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results)
 	}
 	m.sendToPlayer(player.Tx, stateMessage)
 
