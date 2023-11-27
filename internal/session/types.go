@@ -11,27 +11,27 @@ import (
 )
 
 type (
-	// An ImageId identifies a particular image stored on this server.
-	ImageId uuid.NullUUID
+	// An ImageID identifies a particular image stored on this server.
+	ImageID uuid.NullUUID
 
-	// A SessionId is a permanent session identifier, valid for the lifetime of the session.
-	SessionId uuid.UUID
+	// A SessionID is a permanent session identifier, valid for the lifetime of the session.
+	SessionID uuid.UUID
 
-	// A PlayerId identifies a particular player in a session.
+	// A PlayerID identifies a particular player in a session.
 	//
 	// It is generated randomly when a client joins and is only valid in the context of the session.
-	// Unlike their [ClientId], the client's PlayerId is shared among other session players.
-	PlayerId uuid.UUID
+	// Unlike their [ClientID], the client's PlayerID is shared among other session players.
+	PlayerID uuid.UUID
 
-	// A ClientId identifies a particular client.
-	// The ClientId is a secret value that is used for access control;
+	// A ClientID identifies a particular client.
+	// The ClientID is a secret value that is used for access control;
 	// for that reason it's never shared with other clients.
 	//
-	// When a client joins a session, they are assigned a [PlayerId], which, unlike the ClientId, is public.
-	ClientId uuid.UUID
+	// When a client joins a session, they are assigned a [PlayerID], which, unlike the ClientID, is public.
+	ClientID uuid.UUID
 )
 
-func (id ImageId) String() string {
+func (id ImageID) String() string {
 	if id.Valid {
 		return id.UUID.String()
 	} else {
@@ -39,39 +39,39 @@ func (id ImageId) String() string {
 	}
 }
 
-func (sid SessionId) UUID() uuid.UUID {
+func (sid SessionID) UUID() uuid.UUID {
 	return uuid.UUID(sid)
 }
 
-func (id PlayerId) UUID() uuid.UUID {
+func (id PlayerID) UUID() uuid.UUID {
 	return uuid.UUID(id)
 }
 
-func (id ClientId) UUID() uuid.UUID {
+func (id ClientID) UUID() uuid.UUID {
 	return uuid.UUID(id)
 }
 
-func NewSessionId() SessionId {
+func NewSessionID() SessionID {
 	uuid, err := uuid.NewRandom()
 	if err != nil {
 		panic(fmt.Sprintf("could not generate session id: %v", err))
 	}
-	return SessionId(uuid)
+	return SessionID(uuid)
 }
 
-func (sid SessionId) String() string {
+func (sid SessionID) String() string {
 	return sid.UUID().String()
 }
 
-func NewPlayerId() PlayerId {
+func NewPlayerID() PlayerID {
 	uuid, err := uuid.NewRandom()
 	if err != nil {
 		panic(fmt.Sprintf("could not generate player id: %v", err))
 	}
-	return PlayerId(uuid)
+	return PlayerID(uuid)
 }
 
-func (id PlayerId) String() string {
+func (id PlayerID) String() string {
 	return id.UUID().String()
 }
 
@@ -112,26 +112,26 @@ func NewInviteCode() InviteCode {
 }
 
 type session struct {
-	id            SessionId
+	id            SessionID
 	game          Game
-	players       map[PlayerId]Player
+	players       map[PlayerID]Player
 	playersMax    int
-	clients       map[ClientId]PlayerId
-	bannedClients map[ClientId]struct{}
+	clients       map[ClientID]PlayerID
+	bannedClients map[ClientID]struct{}
 	state         State
 }
 
 type Game struct {
 	Name        string
 	Description string
-	ImageId     ImageId
+	ImageID     ImageID
 	DateChanged time.Time
 	Tasks       []Task
 }
 
 type Player struct {
-	Id       PlayerId
-	ClientId ClientId
+	ID       PlayerID
+	ClientID ClientID
 	Nickname string
 	Tx       TxChan
 }
@@ -140,7 +140,7 @@ type PollOption struct {
 	Value TaskAnswer
 
 	// Beneficiaries is a set of players who have submitted this answer and would benefit from having this option win.
-	Beneficiaries map[PlayerId]struct{}
+	Beneficiaries map[PlayerID]struct{}
 }
 
 // An OptionIdx is a "nullable" index for an option in a poll.

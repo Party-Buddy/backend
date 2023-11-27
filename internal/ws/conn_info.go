@@ -19,17 +19,17 @@ type ConnInfo struct {
 	// wsConn is a WebSocket (ws) connection
 	wsConn *websocket.Conn
 
-	// client is the ClientId to which ws connection is related
-	client session.ClientId
+	// client is the ClientID to which ws connection is related
+	client session.ClientID
 
-	// sid is the SessionId to which ws connection is related
-	sid session.SessionId
+	// sid is the SessionID to which ws connection is related
+	sid session.SessionID
 
 	// msgToClientChan is the channel for messages ready to send to client
 	msgToClientChan chan<- ws.RespMessage
 
 	// playerID is the player identifier inside the game
-	playerID *session.PlayerId
+	playerID *session.PlayerID
 
 	// msgID is used for getting new msg-id
 	// DO NOT get the data by accessing field
@@ -49,13 +49,13 @@ type ConnInfo struct {
 func NewConnInfo(
 	manager *session.Manager,
 	wsConn *websocket.Conn,
-	clientId session.ClientId,
-	sid session.SessionId) *ConnInfo {
+	clientID session.ClientID,
+	sid session.SessionID) *ConnInfo {
 
 	return &ConnInfo{
 		manager:       manager,
 		wsConn:        wsConn,
-		client:        clientId,
+		client:        clientID,
 		sid:           sid,
 		msgID:         atomic.Uint32{},
 		stopRequested: atomic.Bool{},
@@ -122,7 +122,7 @@ func (c *ConnInfo) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage)
 					return
 				}
 
-				msg.SetMsgID(ws.MessageId(c.nextMsgID()))
+				msg.SetMsgID(ws.MessageID(c.nextMsgID()))
 				_ = c.wsConn.WriteJSON(msg)
 
 				if c.stopRequested.Load() {
@@ -138,8 +138,8 @@ type msgIDKeyType int
 
 var msgIDKey msgIDKeyType
 
-func msgIDFromContext(ctx context.Context) ws.MessageId {
-	return ctx.Value(msgIDKey).(ws.MessageId)
+func msgIDFromContext(ctx context.Context) ws.MessageID {
+	return ctx.Value(msgIDKey).(ws.MessageID)
 }
 
 func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
@@ -194,7 +194,7 @@ func properWSClose(wsConn *websocket.Conn) {
 
 // dispose is used for closing ws connection and related channels.
 // There 2 possible cases to call dispose:
-//  1. reader call dispose and the client had NOT joined the session (so it has no PlayerId)
+//  1. reader call dispose and the client had NOT joined the session (so it has no PlayerID)
 //  2. reader call dispose and client had joined the session
 //
 // Disconnecting because of server initiative is handled in runServeToWriterConverter
@@ -205,7 +205,7 @@ func (c *ConnInfo) dispose(ctx context.Context) {
 		// Here we are asking manager to disconnect us
 		log.Printf("ConnInfo client: %v player: %v request disconnection from manager",
 			c.client.UUID().String(), c.playerID.UUID().ID())
-		c.manager.RequestDisconnect(ctx, c.sid, c.client, *c.playerID)
+		c.manager.RemovePlayer(ctx, c.sid, *c.playerID)
 	} else {
 		// Manager knows nothing about client, so we just stop threads
 		c.cancel()

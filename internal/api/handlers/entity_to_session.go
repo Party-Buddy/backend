@@ -25,7 +25,7 @@ func gameIDToSessionGame(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) (sess
 	game.Name = gameEntity.Name
 	game.Description = gameEntity.Description
 	game.DateChanged = gameEntity.UpdatedAt
-	game.ImageId = session.ImageId(gameEntity.ImageID)
+	game.ImageID = session.ImageID(gameEntity.ImageID)
 
 	taskEntities, err := db.GetGameTasksByID(ctx, tx, gameID)
 	if err != nil {
@@ -52,7 +52,7 @@ func entityToSessionTask(ctx context.Context, tx pgx.Tx, entity db.TaskEntity) (
 		Name:         entity.Name,
 		Description:  entity.Description,
 		TaskDuration: time.Duration(entity.DurationSeconds) * time.Second,
-		ImageId:      session.ImageId(entity.ImageID),
+		ImageID:      session.ImageID(entity.ImageID),
 	}
 	switch entity.TaskKind {
 	case db.Text:

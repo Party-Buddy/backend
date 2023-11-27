@@ -8,13 +8,13 @@ import (
 )
 
 // CreateSessionImageRef stores a new use of an image referenced by a session.
-func CreateSessionImageRef(ctx context.Context, tx pgx.Tx, sid uuid.UUID, imageId uuid.UUID) error {
+func CreateSessionImageRef(ctx context.Context, tx pgx.Tx, sid uuid.UUID, imageID uuid.UUID) error {
 	_, err := tx.Exec(ctx, `
 		INSERT INTO session_image_refs (image_id, session_id)
 			VALUES ($1, $2)
 			ON CONFLICT DO NOTHING
 		`,
-		uuid.NullUUID{UUID: imageId, Valid: true},
+		uuid.NullUUID{UUID: imageID, Valid: true},
 		uuid.NullUUID{UUID: sid, Valid: true},
 	)
 

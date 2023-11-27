@@ -25,7 +25,7 @@ func ToSchemaTask(t session.Task) schemas.BaseTaskWithImg {
 	task := schemas.BaseTaskWithImg{}
 	task.Name = t.GetName()
 	task.Description = t.GetDescription()
-	task.ImgURI = configuration.GenImgURI(t.GetImageId().UUID)
+	task.ImgURI = configuration.GenImgURI(t.GetImageID().UUID)
 	task.Duration = schemas.PollDuration{Kind: schemas.Fixed, Secs: uint16(t.GetTaskDuration().Seconds())}
 	switch t := t.(type) {
 	case *session.PhotoTask:
@@ -65,15 +65,15 @@ func ToGameDetails(g session.Game) schemas.GameDetails {
 		tasks = append(tasks, ToSchemaTask(g.Tasks[i]))
 	}
 	game.Tasks = tasks
-	game.ImgURI = configuration.GenImgURI(g.ImageId.UUID)
+	game.ImgURI = configuration.GenImgURI(g.ImageID.UUID)
 	return game
 }
 
 func ToMessageJoined(m session.MsgJoined) ws.MessageJoined {
 	msg := ws.MessageJoined{}
 	msg.BaseMessage = utils.GenBaseMessage(&ws.MsgKindJoined)
-	msg.Sid = m.SessionId.UUID()
-	msg.PlayerID = m.PlayerId.UUID().ID()
+	msg.Sid = m.SessionID.UUID()
+	msg.PlayerID = m.PlayerID.UUID().ID()
 	msg.Game = ToGameDetails(*m.Game)
 	return msg
 }

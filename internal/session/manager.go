@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"log"
 	"party-buddy/internal/db"
 	"party-buddy/internal/util"
 	"time"
@@ -14,7 +15,7 @@ import (
 type Manager struct {
 	db       *db.DBPool
 	storage  SyncStorage
-	updaters map[SessionId]chan<- updateMsg
+	updaters map[SessionID]chan<- updateMsg
 	runChan  chan runMsg
 }
 
@@ -23,8 +24,12 @@ func NewManager(db *db.DBPool) *Manager {
 		db:       db,
 		storage:  NewSyncStorage(),
 		runChan:  make(chan runMsg),
-		updaters: make(map[SessionId]chan<- updateMsg),
+		updaters: make(map[SessionID]chan<- updateMsg),
 	}
+}
+
+func (m *Manager) Storage() *SyncStorage {
+	return &m.storage
 }
 
 // # Update logic
@@ -34,7 +39,7 @@ type runMsg interface {
 }
 
 type runMsgSpawn struct {
-	sid SessionId
+	sid SessionID
 	rx  <-chan updateMsg
 }
 
@@ -52,10 +57,16 @@ outer:
 		case msg := <-m.runChan:
 			switch msg := msg.(type) {
 			case *runMsgSpawn:
+				logger := log.New(
+					log.Default().Writer(),
+					fmt.Sprintf("sessionUpdater(sid %s)", msg.sid),
+					log.Default().Flags(),
+				)
 				updater := sessionUpdater{
 					m:   m,
 					sid: msg.sid,
 					rx:  msg.rx,
+					log: logger,
 				}
 				group.Go(func() error {
 					return updater.run(ctx)
@@ -67,7 +78,7 @@ outer:
 	return group.Wait()
 }
 
-func (m *Manager) sendToUpdater(sid SessionId, msg updateMsg) {
+func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
 	tx, ok := m.updaters[sid]
 	if !ok {
 		return
@@ -90,28 +101,28 @@ func (m *Manager) NewSession(
 	ctx context.Context,
 	tx pgx.Tx,
 	game *Game,
-	owner ClientId,
-	ownerNickname string,
+	owner ClientID,
 	requireReady bool,
 	playersMax int,
-) (sid SessionId, code InviteCode, ownerId PlayerId, err error) {
+) (sid SessionID, code InviteCode, err error) {
 	m.storage.Atomically(func(s *UnsafeStorage) {
-		sid, code, ownerId, err = s.NewSession(game, owner, ownerNickname, requireReady, playersMax)
+		deadline := time.Now().Add(NoOwnerTimeout)
+		sid, code, err = s.newSession(game, owner, requireReady, playersMax, deadline)
 		if err != nil {
 			return
 		}
 		defer func() {
 			if err != nil {
-				s.RemoveSession(sid)
+				m.closeSession(ctx, s, tx, sid)
 			}
 		}()
 
-		if err = m.registerImage(ctx, tx, sid, game.ImageId); err != nil {
+		if err = m.registerImage(ctx, tx, sid, game.ImageID); err != nil {
 			return
 		}
 
 		for _, task := range game.Tasks {
-			if err = m.registerImage(ctx, tx, sid, task.GetImageId()); err != nil {
+			if err = m.registerImage(ctx, tx, sid, task.GetImageID()); err != nil {
 				return
 			}
 		}
@@ -131,10 +142,10 @@ func (m *Manager) NewSession(
 	return
 }
 
-func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionId, imageId ImageId) error {
-	if imageId.Valid {
-		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageId.UUID); err != nil {
-			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageId, sid, err)
+func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionID, imageID ImageID) error {
+	if imageID.Valid {
+		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageID.UUID); err != nil {
+			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageID, sid, err)
 		}
 	}
 
@@ -143,26 +154,26 @@ func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionId, i
 
 func (m *Manager) JoinSession(
 	ctx context.Context,
-	sid SessionId,
-	clientId ClientId,
+	sid SessionID,
+	clientID ClientID,
 	nickname string,
 	tx TxChan,
-) (playerId PlayerId, err error) {
+) (playerID PlayerID, err error) {
 	m.storage.Atomically(func(s *UnsafeStorage) {
 		if !s.SessionExists(sid) {
 			err = ErrNoSession
 			return
 		}
-		if player, err := s.PlayerByClientId(sid, clientId); err == nil {
-			playerId = player.Id
-			m.onReconnect(ctx, s, sid, &player, tx)
+		if player, err := s.PlayerByClientID(sid, clientID); err == nil {
+			playerID = player.ID
+			m.reconnect(ctx, s, sid, &player, tx)
 			return
 		}
 		if !s.AwaitingPlayers(sid) {
 			err = ErrGameInProgress
 			return
 		}
-		if s.ClientBanned(sid, clientId) {
+		if s.ClientBanned(sid, clientID) {
 			err = ErrClientBanned
 			return
 		}
@@ -175,40 +186,47 @@ func (m *Manager) JoinSession(
 			return
 		}
 
-		player := util.Must(s.AddPlayer(sid, clientId, nickname, tx))
-		playerId = player.Id
-		m.onJoin(ctx, s, sid, &player, false)
+		player := util.Must(s.addPlayer(sid, clientID, nickname, tx))
+		playerID = player.ID
+		m.join(ctx, s, sid, &player, false)
 	})
 
 	return
 }
 
+// RemovePlayer removes a player from a session.
+func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID PlayerID) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		m.removePlayer(s, sid, playerID)
+	})
+}
+
 // # Event handlers
 
-func (m *Manager) onReconnect(
+func (m *Manager) reconnect(
 	ctx context.Context,
 	s *UnsafeStorage,
-	sid SessionId,
+	sid SessionID,
 	player *Player,
 	tx TxChan,
 ) {
 	// TODO: handle reconnects
 
 	// TODO: tell the client why we're disconnecting them
-	m.closePlayerTx(ctx, s, sid, player.Id)
+	m.closePlayerTx(s, sid, player.ID)
 
-	m.onJoin(ctx, s, sid, player, true)
+	m.join(ctx, s, sid, player, true)
 }
 
-func (m *Manager) onJoin(
+func (m *Manager) join(
 	ctx context.Context,
 	s *UnsafeStorage,
-	sid SessionId,
+	sid SessionID,
 	player *Player,
 	reconnect bool,
 ) {
 	game, _ := s.SessionGame(sid)
-	joined := m.makeMsgJoined(ctx, player.Id, sid, &game)
+	joined := m.makeMsgJoined(ctx, player.ID, sid, &game)
 	m.sendToPlayer(player.Tx, joined)
 
 	players := s.Players(sid)
@@ -223,45 +241,73 @@ func (m *Manager) onJoin(
 	}
 
 	var stateMessage ServerTx
-	switch state := s.SessionState(sid).(type) {
+	switch state := s.sessionState(sid).(type) {
 	case *AwaitingPlayersState:
-		stateMessage = m.makeMsgWaiting(ctx, state.PlayersReady)
+		stateMessage = m.makeMsgWaiting(ctx, state.playersReady)
 	case *GameStartedState:
-		stateMessage = m.makeMsgGameStart(ctx, state.Deadline)
+		stateMessage = m.makeMsgGameStart(ctx, state.deadline)
 	case *TaskStartedState:
-		stateMessage = m.makeMsgTaskStart(ctx, state.TaskIdx, state.Deadline)
+		stateMessage = m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline)
 	case *PollStartedState:
-		stateMessage = m.makeMsgPollStart(ctx, state.TaskIdx, state.Deadline, state.Options)
+		stateMessage = m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
 	case *TaskEndedState:
-		stateMessage = m.makeMsgTaskEnd(ctx, state.TaskIdx, state.Deadline, state.Results)
+		stateMessage = m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results)
 	}
 	m.sendToPlayer(player.Tx, stateMessage)
 
 	// TODO: notify the websockets handler of the current state
 
-	m.sendToUpdater(sid, &updateMsgPlayerAdded{playerId: player.Id})
+	m.sendToUpdater(sid, &updateMsgPlayerAdded{playerID: player.ID})
+}
+
+func (m *Manager) closeSession(
+	ctx context.Context,
+	s *UnsafeStorage,
+	tx pgx.Tx,
+	sid SessionID,
+) {
+	s.ForEachPlayer(sid, func(p Player) {
+		m.closePlayerTx(s, sid, p.ID)
+	})
+
+	db.RemoveSessionImageRefs(ctx, tx, sid.UUID())
+
+	if updater := m.updaters[sid]; updater != nil {
+		close(updater)
+	}
+	delete(m.updaters, sid)
+
+	s.removeSession(sid)
+}
+
+func (m *Manager) removePlayer(s *UnsafeStorage, sid SessionID, playerID PlayerID) {
+	player, err := s.PlayerByID(sid, playerID)
+	if err != nil {
+		return
+	}
+
+	m.closePlayerTx(s, sid, playerID)
+	s.removePlayer(sid, player.ClientID)
+
+	// TODO: update the state and send out notifications
 }
 
 // # Server-to-client communication
 
 func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
-	// TODO: type message appropriately
-	// TODO: send a message to the client's websocket handler somehow
+	if tx != nil {
+		tx <- message
+	}
 }
 
-func (m *Manager) closePlayerTx(
-	ctx context.Context,
-	s *UnsafeStorage,
-	sid SessionId,
-	playerId PlayerId,
-) {
-	// TODO
+func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) {
+	s.closePlayerTx(sid, playerID)
 }
 
 func (m *Manager) makeMsgJoined(
 	ctx context.Context,
-	playerId PlayerId,
-	sid SessionId,
+	playerID PlayerID,
+	sid SessionID,
 	game *Game,
 ) ServerTx {
 	// TODO
@@ -303,32 +349,7 @@ func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) Serv
 	return nil
 }
 
-func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerId]struct{}) ServerTx {
+func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerID]struct{}) ServerTx {
 	// TODO
 	return nil
-}
-
-func (m *Manager) SidByInviteCode(code string) (sid SessionId, ok bool) {
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		sid, ok = s.SidByInviteCode(InviteCode(code))
-	})
-	return
-}
-
-func (m *Manager) SessionExists(sid SessionId) (ok bool) {
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		ok = s.SessionExists(sid)
-	})
-	return
-}
-
-func (m *Manager) RequestDisconnect(ctx context.Context, sid SessionId, clientID ClientId, playerID PlayerId) {
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		m.closePlayerTx(ctx, s, sid, playerID)
-
-		_, ok := s.removePlayer(sid, clientID)
-		if ok {
-			// TODO: notify other players that the player disconnected
-		}
-	})
 }

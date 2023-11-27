@@ -15,17 +15,17 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 		var errMsg ws.MessageError
 		switch {
 		case errors.Is(err, session.ErrNoSession):
-			errMsg = utils.GenMessageError(m.MsgId, ws.ErrSessionExpired, "no such session")
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrSessionExpired, "no such session")
 		case errors.Is(err, session.ErrGameInProgress):
-			errMsg = utils.GenMessageError(m.MsgId, ws.ErrUnknownSession, "game in progress now, no clients accepted")
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrUnknownSession, "game in progress now, no clients accepted")
 		case errors.Is(err, session.ErrClientBanned):
-			errMsg = utils.GenMessageError(m.MsgId, ws.ErrUnknownSession, "unknown session in request")
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrUnknownSession, "unknown session in request")
 		case errors.Is(err, session.ErrNicknameUsed):
-			errMsg = utils.GenMessageError(m.MsgId, ws.ErrNicknameUsed, "nickname is already used")
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrNicknameUsed, "nickname is already used")
 		case errors.Is(err, session.ErrLobbyFull):
-			errMsg = utils.GenMessageError(m.MsgId, ws.ErrLobbyFull, "lobby is full")
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrLobbyFull, "lobby is full")
 		default:
-			errMsg = utils.GenMessageError(m.MsgId, ws.ErrInternal, "internal error occurred")
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal, "internal error occurred")
 		}
 		log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
 			c.client.UUID().String(), err.Error(), errMsg.Code)
