@@ -106,7 +106,8 @@ func (m *Manager) NewSession(
 	playersMax int,
 ) (sid SessionID, code InviteCode, err error) {
 	m.storage.Atomically(func(s *UnsafeStorage) {
-		sid, code, err = s.newSession(game, owner, requireReady, playersMax)
+		deadline := time.Now().Add(NoOwnerTimeout)
+		sid, code, err = s.newSession(game, owner, requireReady, playersMax, deadline)
 		if err != nil {
 			return
 		}

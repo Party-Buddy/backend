@@ -37,7 +37,9 @@ type sessionUpdater struct {
 }
 
 func (u *sessionUpdater) run(ctx context.Context) error {
-	// TODO: set the deadline for the current state somehow (changeStateTo?)
+	u.m.storage.Atomically(func(s *UnsafeStorage) {
+		u.changeStateTo(ctx, s, s.sessionState(u.sid))
+	})
 
 	for {
 		select {
@@ -78,15 +80,11 @@ func (u *sessionUpdater) playerAdded(s *UnsafeStorage, playerID PlayerID) {
 		return
 	}
 
-	switch state := state.(type) {
-	case *AwaitingPlayersState:
-		if state.owner == player.ClientID {
-			// the owner has at last joined the session
-			if !u.deadline.Stop() {
-				<-u.deadline.C
-			}
+	if state, ok := state.(*AwaitingPlayersState); ok && state.owner == player.ClientID {
+		// the owner has at last joined the session
+		if !u.deadline.Stop() {
+			<-u.deadline.C
 		}
-	default:
 	}
 }
 
@@ -113,7 +111,28 @@ func (u *sessionUpdater) changeStateTo(
 		return
 	}
 
-	// TODO: handle transition to other states
+	// TODO: handle transition from other states
+
+	u.deadline.Reset(nextState.Deadline().Sub(time.Now()))
+
+	switch nextState.(type) {
+	case *AwaitingPlayersState:
+		// TODO
+
+	case *GameStartedState:
+		// TODO
+
+	case *TaskStartedState:
+		// TODO
+
+	case *PollStartedState:
+		// TODO
+
+	case *TaskEndedState:
+		// TODO
+	}
+
+	s.setSessionState(u.sid, nextState)
 }
 
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
@@ -129,5 +148,17 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 		}
 
 		u.changeStateTo(ctx, s, nil)
+
+	case *GameStartedState:
+		// TODO
+
+	case *TaskStartedState:
+		// TODO
+
+	case *PollStartedState:
+		// TODO
+
+	case *TaskEndedState:
+		// TODO
 	}
 }

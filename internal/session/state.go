@@ -3,6 +3,8 @@ package session
 import "time"
 
 type State interface {
+	Deadline() time.Time
+
 	isState() // an unexported marker method so we don't have scary interface{}s floating around
 }
 
@@ -12,6 +14,9 @@ type State interface {
 type AwaitingPlayersState struct {
 	// A short code used for session discovery.
 	inviteCode InviteCode
+
+	// When the session expires, should the owner fail to join it before.
+	deadline time.Time
 
 	// A set of players who expressed their readiness.
 	playersReady map[PlayerID]struct{}
@@ -27,6 +32,10 @@ type AwaitingPlayersState struct {
 	owner ClientID
 }
 
+func (s *AwaitingPlayersState) Deadline() time.Time {
+	return s.deadline
+}
+
 func (*AwaitingPlayersState) isState() {}
 
 // A GameStartedState is a state right after the game starts.
@@ -34,6 +43,10 @@ func (*AwaitingPlayersState) isState() {}
 type GameStartedState struct {
 	// When the first start should start.
 	deadline time.Time
+}
+
+func (s *GameStartedState) Deadline() time.Time {
+	return s.deadline
 }
 
 func (*GameStartedState) isState() {}
@@ -54,6 +67,10 @@ type TaskStartedState struct {
 	ready map[PlayerID]struct{}
 }
 
+func (s *TaskStartedState) Deadline() time.Time {
+	return s.deadline
+}
+
 func (*TaskStartedState) isState() {}
 
 // A PollStartedState is a state while players vote for each other's answers.
@@ -72,6 +89,10 @@ type PollStartedState struct {
 	votes map[PlayerID]OptionIdx
 }
 
+func (s *PollStartedState) Deadline() time.Time {
+	return s.deadline
+}
+
 func (*PollStartedState) isState() {}
 
 // A TaskEndedState is a state right after a task ends.
@@ -85,6 +106,10 @@ type TaskEndedState struct {
 
 	// The answers made by players — and the popularity of those answers.
 	results []AnswerResult
+}
+
+func (s *TaskEndedState) Deadline() time.Time {
+	return s.deadline
 }
 
 func (*TaskEndedState) isState() {}

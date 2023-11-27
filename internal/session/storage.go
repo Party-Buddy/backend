@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 // A SyncStorage encapsulates an [UnsafeStorage] and provides a thread-safe interface to the storage.
@@ -87,9 +88,10 @@ func (s *UnsafeStorage) sessionByID(sid SessionID) (*session, error) {
 // The given game is cloned by newSession.
 func (s *UnsafeStorage) newSession(
 	game *Game,
-	ownerID ClientID,
+	owner ClientID,
 	requireReady bool,
 	playersMax int,
+	deadline time.Time,
 ) (sid SessionID, code InviteCode, err error) {
 	code, err = s.newInviteCode()
 	if err != nil {
@@ -107,8 +109,10 @@ func (s *UnsafeStorage) newSession(
 		bannedClients: make(map[ClientID]struct{}),
 		state: &AwaitingPlayersState{
 			inviteCode:   code,
+			deadline:     deadline,
+			playersReady: make(map[PlayerID]struct{}),
 			requireReady: requireReady,
-			owner:        ownerID,
+			owner:        owner,
 		},
 	}
 	s.inviteCodes[code] = sid
@@ -118,7 +122,22 @@ func (s *UnsafeStorage) newSession(
 
 // removeSession removes a session from the storage.
 func (s *UnsafeStorage) removeSession(sid SessionID) {
-	// TODO
+	s.expireInviteCode(sid)
+	delete(s.sessions, sid)
+}
+
+// expireInviteCode invalidates a session's invite code, making it available for other sessions.
+func (s *UnsafeStorage) expireInviteCode(sid SessionID) {
+	session := s.sessions[sid]
+	if session == nil {
+		return
+	}
+
+	if state, ok := session.state.(*AwaitingPlayersState); ok {
+		if s.inviteCodes[state.inviteCode] == sid {
+			delete(s.inviteCodes, state.inviteCode)
+		}
+	}
 }
 
 // PlayerByClientID returns a player in a session with the given clientID.
@@ -211,6 +230,13 @@ func (s *UnsafeStorage) sessionState(sid SessionID) State {
 		return session.state
 	}
 	return nil
+}
+
+// setSessionState sets the current session state to the provided value.
+func (s *UnsafeStorage) setSessionState(sid SessionID, state State) {
+	if session := s.sessions[sid]; session != nil {
+		session.state = state
+	}
 }
 
 // HasPlayerNickname returns true iff there's a player with the given nickname in a session.
