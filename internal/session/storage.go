@@ -298,6 +298,16 @@ func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID
 	return playerID, true
 }
 
+func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) {
+	if session := s.sessions[sid]; session != nil {
+		if player, ok := session.players[id]; ok {
+			close(session.players[id].Tx)
+			player.Tx = nil
+			session.players[id] = player
+		}
+	}
+}
+
 // AwaitingPlayers returns true iff the current session state is awaitingPlayersState.
 func (s *UnsafeStorage) AwaitingPlayers(sid SessionID) bool {
 	if session := s.sessions[sid]; session != nil {

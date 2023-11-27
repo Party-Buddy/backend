@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"log"
 	"party-buddy/internal/db"
 	"party-buddy/internal/util"
 	"time"
@@ -56,10 +57,16 @@ outer:
 		case msg := <-m.runChan:
 			switch msg := msg.(type) {
 			case *runMsgSpawn:
+				logger := log.New(
+					log.Default().Writer(),
+					fmt.Sprintf("sessionUpdater(sid %s)", msg.sid),
+					log.Default().Flags(),
+				)
 				updater := sessionUpdater{
 					m:   m,
 					sid: msg.sid,
 					rx:  msg.rx,
+					log: logger,
 				}
 				group.Go(func() error {
 					return updater.run(ctx)
@@ -87,18 +94,6 @@ func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
 
 // # Synchronous methods
 
-// RemovePlayer removes a player from a session.
-func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, clientID ClientID, playerID PlayerID) {
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		m.closePlayerTx(ctx, s, sid, playerID)
-
-		_, ok := s.removePlayer(sid, clientID)
-		if ok {
-			// TODO: notify other players that the player disconnected
-		}
-	})
-}
-
 // NewSession creates a new session.
 //
 // Assumes all values are valid.
@@ -117,7 +112,7 @@ func (m *Manager) NewSession(
 		}
 		defer func() {
 			if err != nil {
-				s.removeSession(sid)
+				m.closeSession(ctx, s, tx, sid)
 			}
 		}()
 
@@ -170,7 +165,7 @@ func (m *Manager) JoinSession(
 		}
 		if player, err := s.PlayerByClientID(sid, clientID); err == nil {
 			playerID = player.ID
-			m.onReconnect(ctx, s, sid, &player, tx)
+			m.reconnect(ctx, s, sid, &player, tx)
 			return
 		}
 		if !s.AwaitingPlayers(sid) {
@@ -192,15 +187,22 @@ func (m *Manager) JoinSession(
 
 		player := util.Must(s.addPlayer(sid, clientID, nickname, tx))
 		playerID = player.ID
-		m.onJoin(ctx, s, sid, &player, false)
+		m.join(ctx, s, sid, &player, false)
 	})
 
 	return
 }
 
+// RemovePlayer removes a player from a session.
+func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID PlayerID) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		m.removePlayer(s, sid, playerID)
+	})
+}
+
 // # Event handlers
 
-func (m *Manager) onReconnect(
+func (m *Manager) reconnect(
 	ctx context.Context,
 	s *UnsafeStorage,
 	sid SessionID,
@@ -210,12 +212,12 @@ func (m *Manager) onReconnect(
 	// TODO: handle reconnects
 
 	// TODO: tell the client why we're disconnecting them
-	m.closePlayerTx(ctx, s, sid, player.ID)
+	m.closePlayerTx(s, sid, player.ID)
 
-	m.onJoin(ctx, s, sid, player, true)
+	m.join(ctx, s, sid, player, true)
 }
 
-func (m *Manager) onJoin(
+func (m *Manager) join(
 	ctx context.Context,
 	s *UnsafeStorage,
 	sid SessionID,
@@ -257,20 +259,48 @@ func (m *Manager) onJoin(
 	m.sendToUpdater(sid, &updateMsgPlayerAdded{playerID: player.ID})
 }
 
+func (m *Manager) closeSession(
+	ctx context.Context,
+	s *UnsafeStorage,
+	tx pgx.Tx,
+	sid SessionID,
+) {
+	s.ForEachPlayer(sid, func(p Player) {
+		m.closePlayerTx(s, sid, p.ID)
+	})
+
+	db.RemoveSessionImageRefs(ctx, tx, sid.UUID())
+
+	if updater := m.updaters[sid]; updater != nil {
+		close(updater)
+	}
+	delete(m.updaters, sid)
+
+	s.removeSession(sid)
+}
+
+func (m *Manager) removePlayer(s *UnsafeStorage, sid SessionID, playerID PlayerID) {
+	player, err := s.PlayerByID(sid, playerID)
+	if err != nil {
+		return
+	}
+
+	m.closePlayerTx(s, sid, playerID)
+	s.removePlayer(sid, player.ClientID)
+
+	// TODO: update the state and send out notifications
+}
+
 // # Server-to-client communication
 
 func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
-	// TODO: type message appropriately
-	// TODO: send a message to the client's websocket handler somehow
+	if tx != nil {
+		tx <- message
+	}
 }
 
-func (m *Manager) closePlayerTx(
-	ctx context.Context,
-	s *UnsafeStorage,
-	sid SessionID,
-	playerID PlayerID,
-) {
-	// TODO
+func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) {
+	s.closePlayerTx(sid, playerID)
 }
 
 func (m *Manager) makeMsgJoined(

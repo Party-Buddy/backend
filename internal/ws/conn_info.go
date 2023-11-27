@@ -205,7 +205,7 @@ func (c *ConnInfo) dispose(ctx context.Context) {
 		// Here we are asking manager to disconnect us
 		log.Printf("ConnInfo client: %v player: %v request disconnection from manager",
 			c.client.UUID().String(), c.playerID.UUID().ID())
-		c.manager.RemovePlayer(ctx, c.sid, c.client, *c.playerID)
+		c.manager.RemovePlayer(ctx, c.sid, *c.playerID)
 	} else {
 		// Manager knows nothing about client, so we just stop threads
 		c.cancel()
