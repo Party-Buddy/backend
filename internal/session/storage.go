@@ -327,7 +327,9 @@ func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID
 func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) {
 	if session := s.sessions[sid]; session != nil {
 		if player, ok := session.players[id]; ok {
-			close(session.players[id].Tx)
+			if player.Tx != nil {
+				close(player.Tx)
+			}
 			player.Tx = nil
 			session.players[id] = player
 		}

@@ -210,9 +210,7 @@ func (m *Manager) reconnect(
 	player *Player,
 	tx TxChan,
 ) {
-	// TODO: handle reconnects
-
-	// TODO: tell the client why we're disconnecting them
+	m.sendToPlayer(player.Tx, m.makeMsgError(ctx, ErrReconnected))
 	m.closePlayerTx(s, sid, player.ID)
 
 	m.join(ctx, s, sid, player, true)
@@ -302,6 +300,13 @@ func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
 
 func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) {
 	s.closePlayerTx(sid, playerID)
+}
+
+func (m *Manager) makeMsgError(ctx context.Context, err error) ServerTx {
+	return &MsgError{
+		baseTx: baseTx{Ctx: ctx},
+		Inner:  err,
+	}
 }
 
 func (m *Manager) makeMsgJoined(
