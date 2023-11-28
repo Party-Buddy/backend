@@ -139,12 +139,7 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 	switch s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
 		for _, tx := range s.PlayerTxs(u.sid) {
-			u.m.sendToPlayer(tx, &MsgError{
-				baseTx: baseTx{
-					Ctx: ctx,
-				},
-				Inner: ErrNoOwnerTimeout,
-			})
+			u.m.sendToPlayer(tx, u.m.makeMsgError(ctx, ErrNoOwnerTimeout))
 		}
 
 		u.changeStateTo(ctx, s, nil)
