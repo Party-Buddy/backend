@@ -116,6 +116,7 @@ func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, pla
 		return
 	}
 
+	u.m.closePlayerTx(s, u.sid, playerID)
 	s.removePlayer(u.sid, player.ClientID)
 
 	gameStatus := u.m.makeMsgGameStatus(ctx, s.Players(u.sid))

@@ -237,8 +237,9 @@ func (m *Manager) JoinSession(
 
 // RemovePlayer removes a player from a session.
 func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID PlayerID) {
-	m.lockStorageThenUpdate(sid, func(s *UnsafeStorage) []updateMsg {
-		return m.removePlayer(ctx, s, sid, playerID)
+	m.sendToUpdater(sid, &updateMsgRemovePlayer{
+		ctx:      ctx,
+		playerID: playerID,
 	})
 }
 
@@ -323,24 +324,6 @@ func (m *Manager) closeSession(
 	delete(m.updaters, sid)
 
 	s.removeSession(sid)
-}
-
-func (m *Manager) removePlayer(
-	ctx context.Context,
-	s *UnsafeStorage,
-	sid SessionID,
-	playerID PlayerID,
-) []updateMsg {
-	if !m.closePlayerTx(s, sid, playerID) {
-		return nil
-	}
-
-	return []updateMsg{
-		&updateMsgRemovePlayer{
-			ctx:      ctx,
-			playerID: playerID,
-		},
-	}
 }
 
 // # Server-to-client communication
