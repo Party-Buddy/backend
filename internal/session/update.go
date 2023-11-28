@@ -15,10 +15,18 @@ type updateMsg interface {
 }
 
 type updateMsgPlayerAdded struct {
+	ctx      context.Context
 	playerID PlayerID
 }
 
 func (*updateMsgPlayerAdded) isUpdateMsg() {}
+
+type updateMsgRemovePlayer struct {
+	ctx      context.Context
+	playerID PlayerID
+}
+
+func (*updateMsgRemovePlayer) isUpdateMsg() {}
 
 type updateMsgChangeStateTo struct {
 	nextState State
@@ -59,7 +67,9 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 			u.m.storage.Atomically(func(s *UnsafeStorage) {
 				switch msg := msg.(type) {
 				case *updateMsgPlayerAdded:
-					u.playerAdded(s, msg.playerID)
+					u.playerAdded(msg.ctx, s, msg.playerID)
+				case *updateMsgRemovePlayer:
+					u.removePlayer(msg.ctx, s, msg.playerID)
 				case *updateMsgChangeStateTo:
 					u.changeStateTo(ctx, s, msg.nextState)
 				}
@@ -68,7 +78,7 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 	}
 }
 
-func (u *sessionUpdater) playerAdded(s *UnsafeStorage, playerID PlayerID) {
+func (u *sessionUpdater) playerAdded(ctx context.Context, s *UnsafeStorage, playerID PlayerID) {
 	player, err := s.PlayerByID(u.sid, playerID)
 	if err != nil {
 		u.log.Printf("while handling added player: %s", err)
@@ -85,6 +95,49 @@ func (u *sessionUpdater) playerAdded(s *UnsafeStorage, playerID PlayerID) {
 		if !u.deadline.Stop() {
 			<-u.deadline.C
 		}
+	}
+}
+
+func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, playerID PlayerID) {
+	player, err := s.PlayerByID(u.sid, playerID)
+	if err != nil {
+		u.log.Printf("received removePlayer for unknown player: %s", err)
+		return
+	}
+
+	if state, ok := s.sessionState(u.sid).(*AwaitingPlayersState); ok && state.owner == player.ClientID {
+		// the owner left the session: close it.
+		// note that we have to send an error to the owner too.
+		// therefore we don't remove them here.
+		for _, tx := range s.PlayerTxs(u.sid) {
+			u.m.sendToPlayer(tx, u.m.makeMsgError(ctx, ErrOwnerLeft))
+		}
+		u.changeStateTo(ctx, s, nil)
+		return
+	}
+
+	s.removePlayer(u.sid, player.ClientID)
+
+	gameStatus := u.m.makeMsgGameStatus(ctx, s.Players(u.sid))
+	for _, tx := range s.PlayerTxs(u.sid) {
+		u.m.sendToPlayer(tx, gameStatus)
+	}
+
+	switch state := s.sessionState(u.sid).(type) {
+	case *AwaitingPlayersState:
+		u.setPlayerStartReady(ctx, s, state, playerID, false)
+
+	case *GameStartedState:
+		// do nothing
+
+	case *TaskStartedState:
+		u.setPlayerAnswerReady(ctx, s, state, playerID, false)
+
+	case *PollStartedState:
+		u.setPlayerVote(ctx, s, state, playerID, NewOptionIdx(-1))
+
+	case *TaskEndedState:
+		// do nothing
 	}
 }
 
@@ -136,7 +189,7 @@ func (u *sessionUpdater) changeStateTo(
 }
 
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
-	switch s.sessionState(u.sid).(type) {
+	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
 		for _, tx := range s.PlayerTxs(u.sid) {
 			u.m.sendToPlayer(tx, u.m.makeMsgError(ctx, ErrNoOwnerTimeout))
@@ -145,15 +198,119 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 		u.changeStateTo(ctx, s, nil)
 
 	case *GameStartedState:
-		// TODO
+		u.changeStateTo(ctx, s, u.makeFirstTaskStartedState(s, state))
 
 	case *TaskStartedState:
-		// TODO
+		// TODO: go either to PollStartedState or TaskEndedState
 
 	case *PollStartedState:
-		// TODO
+		u.changeStateTo(ctx, s, u.makePollTaskEndedState(s, state))
 
 	case *TaskEndedState:
-		// TODO
+		// TODO: go either to TaskStartedState or finish the game
 	}
+}
+
+func (u *sessionUpdater) setPlayerStartReady(
+	ctx context.Context,
+	s *UnsafeStorage,
+	state *AwaitingPlayersState,
+	playerID PlayerID,
+	ready bool,
+) {
+	_, exists := state.playersReady[playerID]
+	if ready == exists {
+		return
+	}
+
+	if ready {
+		state.playersReady[playerID] = struct{}{}
+	} else {
+		delete(state.playersReady, playerID)
+	}
+
+	waiting := u.m.makeMsgWaiting(ctx, state.playersReady)
+	for _, tx := range s.PlayerTxs(u.sid) {
+		u.m.sendToPlayer(tx, waiting)
+	}
+
+	if u.shouldStartGame(s) {
+		u.changeStateTo(ctx, s, u.makeGameStartedState(s, state))
+	}
+}
+
+func (u *sessionUpdater) shouldStartGame(s *UnsafeStorage) (start bool) {
+	state, ok := s.sessionState(u.sid).(*AwaitingPlayersState)
+	if !ok {
+		return
+	}
+
+	owner, err := s.PlayerByClientID(u.sid, state.owner)
+	if err != nil {
+		return
+	}
+	if _, ok := state.playersReady[owner.ID]; !ok {
+		return
+	}
+
+	if state.requireReady {
+		for _, player := range s.Players(u.sid) {
+			if _, ok := state.playersReady[player.ID]; !ok {
+				return
+			}
+		}
+	}
+
+	return true
+}
+
+func (u *sessionUpdater) setPlayerAnswerReady(
+	ctx context.Context,
+	s *UnsafeStorage,
+	state *TaskStartedState,
+	playerID PlayerID,
+	ready bool,
+) {
+	// TODO
+}
+
+func (u *sessionUpdater) setPlayerVote(
+	ctx context.Context,
+	s *UnsafeStorage,
+	state *PollStartedState,
+	playerID PlayerID,
+	vote OptionIdx,
+) {
+	// TODO
+}
+
+func (u *sessionUpdater) makeGameStartedState(s *UnsafeStorage, state *AwaitingPlayersState) *GameStartedState {
+	return &GameStartedState{
+		deadline: time.Now().Add(GameStartedTimeout),
+	}
+}
+
+func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *GameStartedState) *TaskStartedState {
+	// TODO
+	return nil
+}
+
+func (u *sessionUpdater) makeNextTaskStartedState(s *UnsafeStorage, state *TaskEndedState) *TaskStartedState {
+	// TODO
+	return nil
+}
+
+func (u *sessionUpdater) makePollStartedState(s *UnsafeStorage, state *TaskStartedState) *PollStartedState {
+	// TODO
+	return nil
+}
+
+func (u *sessionUpdater) makePlainTaskEndedState(s *UnsafeStorage, state *TaskStartedState) *TaskEndedState {
+	// TODO
+	return nil
+}
+
+func (u *sessionUpdater) makePollTaskEndedState(s *UnsafeStorage, state *PollStartedState) *TaskEndedState {
+	// TODO
+	return nil
 }

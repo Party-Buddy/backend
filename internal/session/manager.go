@@ -33,6 +33,19 @@ func (m *Manager) Storage() *SyncStorage {
 }
 
 // # Update logic
+//
+// A manager runs a number of goroutines — one for each session, to be precise.
+// Communication happens through the channel stored in m.updaters.
+//
+// The rules are:
+//   - You must not send a message to an updater while holding the storage locked.
+//     This will lead to deadlocks.
+//
+//   - The communication must be strictly one-way.
+//     The updater must not call into the manager's methods.
+//     The only exception are utilities and server-to-client communication.
+//
+//   - If you need the current session state, that code belongs to the updater.
 
 type runMsg interface {
 	isRunMsg()
@@ -78,17 +91,43 @@ outer:
 	return group.Wait()
 }
 
+// sendToUpdater sends a message to a session updater goroutine.
+//
+// DANGER: you MUST NOT call this method while holding the storage's mutex,
+// or you WILL get deadlocks.
+// Consider using lockStorageThenUpdate instead if you need access to the storage.
 func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
-	tx, ok := m.updaters[sid]
+	var tx chan<- updateMsg
+	var ok bool
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		// FIXME: move updaters to storage
+		tx, ok = m.updaters[sid]
+	})
+
 	if !ok {
 		return
 	}
 
 	if msg == nil {
-		close(tx)
-		delete(m.updaters, sid)
+		m.storage.Atomically(func(s *UnsafeStorage) {
+			close(tx)
+			delete(m.updaters, sid)
+		})
 	} else {
 		tx <- msg
+	}
+}
+
+// lockStorageThenUpdate locks the storage and runs the function.
+// Once it returns, the storage is unlocked and the messages are sent to the updater.
+func (m *Manager) lockStorageThenUpdate(sid SessionID, f func(s *UnsafeStorage) []updateMsg) {
+	var msgs []updateMsg
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		msgs = f(s)
+	})
+
+	for _, msg := range msgs {
+		m.sendToUpdater(sid, msg)
 	}
 }
 
@@ -105,6 +144,8 @@ func (m *Manager) NewSession(
 	requireReady bool,
 	playersMax int,
 ) (sid SessionID, code InviteCode, err error) {
+	var updateChan chan updateMsg
+
 	m.storage.Atomically(func(s *UnsafeStorage) {
 		deadline := time.Now().Add(NoOwnerTimeout)
 		sid, code, err = s.newSession(game, owner, requireReady, playersMax, deadline)
@@ -126,14 +167,15 @@ func (m *Manager) NewSession(
 				return
 			}
 		}
+
+		updateChan = make(chan updateMsg)
+		m.updaters[sid] = updateChan
 	})
 
 	if err != nil {
 		return
 	}
 
-	updateChan := make(chan updateMsg)
-	m.updaters[sid] = updateChan
 	m.runChan <- &runMsgSpawn{
 		sid: sid,
 		rx:  updateChan,
@@ -159,36 +201,35 @@ func (m *Manager) JoinSession(
 	nickname string,
 	tx TxChan,
 ) (playerID PlayerID, err error) {
-	m.storage.Atomically(func(s *UnsafeStorage) {
+	m.lockStorageThenUpdate(sid, func(s *UnsafeStorage) []updateMsg {
 		if !s.SessionExists(sid) {
 			err = ErrNoSession
-			return
+			return nil
 		}
 		if player, err := s.PlayerByClientID(sid, clientID); err == nil {
 			playerID = player.ID
-			m.reconnect(ctx, s, sid, &player, tx)
-			return
+			return m.reconnect(ctx, s, sid, &player, tx)
 		}
 		if !s.AwaitingPlayers(sid) {
 			err = ErrGameInProgress
-			return
+			return nil
 		}
 		if s.ClientBanned(sid, clientID) {
 			err = ErrClientBanned
-			return
+			return nil
 		}
 		if s.HasPlayerNickname(sid, nickname) {
 			err = ErrNicknameUsed
-			return
+			return nil
 		}
 		if s.SessionFull(sid) {
 			err = ErrLobbyFull
-			return
+			return nil
 		}
 
 		player := util.Must(s.addPlayer(sid, clientID, nickname, tx))
 		playerID = player.ID
-		m.join(ctx, s, sid, &player, false)
+		return m.join(ctx, s, sid, &player, false)
 	})
 
 	return
@@ -196,8 +237,8 @@ func (m *Manager) JoinSession(
 
 // RemovePlayer removes a player from a session.
 func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID PlayerID) {
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		m.removePlayer(s, sid, playerID)
+	m.lockStorageThenUpdate(sid, func(s *UnsafeStorage) []updateMsg {
+		return m.removePlayer(ctx, s, sid, playerID)
 	})
 }
 
@@ -209,11 +250,11 @@ func (m *Manager) reconnect(
 	sid SessionID,
 	player *Player,
 	tx TxChan,
-) {
+) []updateMsg {
 	m.sendToPlayer(player.Tx, m.makeMsgError(ctx, ErrReconnected))
 	m.closePlayerTx(s, sid, player.ID)
 
-	m.join(ctx, s, sid, player, true)
+	return m.join(ctx, s, sid, player, true)
 }
 
 func (m *Manager) join(
@@ -222,13 +263,12 @@ func (m *Manager) join(
 	sid SessionID,
 	player *Player,
 	reconnect bool,
-) {
+) []updateMsg {
 	game, _ := s.SessionGame(sid)
 	joined := m.makeMsgJoined(ctx, player.ID, sid, &game)
 	m.sendToPlayer(player.Tx, joined)
 
-	players := s.Players(sid)
-	gameStatus := m.makeMsgGameStatus(ctx, players)
+	gameStatus := m.makeMsgGameStatus(ctx, s.Players(sid))
 
 	if reconnect {
 		m.sendToPlayer(player.Tx, gameStatus)
@@ -238,6 +278,7 @@ func (m *Manager) join(
 		}
 	}
 
+	// TODO: move to updater
 	var stateMessage ServerTx
 	switch state := s.sessionState(sid).(type) {
 	case *AwaitingPlayersState:
@@ -253,11 +294,17 @@ func (m *Manager) join(
 	}
 	m.sendToPlayer(player.Tx, stateMessage)
 
-	// TODO: notify the websockets handler of the current state
-
-	m.sendToUpdater(sid, &updateMsgPlayerAdded{playerID: player.ID})
+	return []updateMsg{
+		&updateMsgPlayerAdded{
+			ctx:      ctx,
+			playerID: player.ID,
+		},
+	}
 }
 
+// closeSession terminates the session and removes it from the storage.
+//
+// This method can be called by an updater.
 func (m *Manager) closeSession(
 	ctx context.Context,
 	s *UnsafeStorage,
@@ -278,16 +325,22 @@ func (m *Manager) closeSession(
 	s.removeSession(sid)
 }
 
-func (m *Manager) removePlayer(s *UnsafeStorage, sid SessionID, playerID PlayerID) {
-	player, err := s.PlayerByID(sid, playerID)
-	if err != nil {
-		return
+func (m *Manager) removePlayer(
+	ctx context.Context,
+	s *UnsafeStorage,
+	sid SessionID,
+	playerID PlayerID,
+) []updateMsg {
+	if !m.closePlayerTx(s, sid, playerID) {
+		return nil
 	}
 
-	m.closePlayerTx(s, sid, playerID)
-	s.removePlayer(sid, player.ClientID)
-
-	// TODO: update the state and send out notifications
+	return []updateMsg{
+		&updateMsgRemovePlayer{
+			ctx:      ctx,
+			playerID: playerID,
+		},
+	}
 }
 
 // # Server-to-client communication
@@ -298,8 +351,8 @@ func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
 	}
 }
 
-func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) {
-	s.closePlayerTx(sid, playerID)
+func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) bool {
+	return s.closePlayerTx(sid, playerID)
 }
 
 func (m *Manager) makeMsgError(ctx context.Context, err error) ServerTx {

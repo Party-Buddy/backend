@@ -4,6 +4,9 @@ import "context"
 
 type TxChan chan<- ServerTx
 
+// A ServerTx is a message sent from the server to the client.
+//
+// Once the message is sent, its fields must not be updated.
 type ServerTx interface {
 	Context() context.Context
 	isServerTx()

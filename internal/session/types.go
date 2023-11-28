@@ -119,6 +119,7 @@ type session struct {
 	clients       map[ClientID]PlayerID
 	bannedClients map[ClientID]struct{}
 	state         State
+	// TODO: scoreboard
 }
 
 type Game struct {

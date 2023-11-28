@@ -8,13 +8,13 @@ import (
 
 // A SyncStorage encapsulates an [UnsafeStorage] and provides a thread-safe interface to the storage.
 type SyncStorage struct {
-	mtx   sync.Mutex
+	mu    sync.Mutex
 	inner UnsafeStorage
 }
 
 func NewSyncStorage() SyncStorage {
 	return SyncStorage{
-		mtx:   sync.Mutex{},
+		mu:    sync.Mutex{},
 		inner: NewUnsafeStorage(),
 	}
 }
@@ -23,8 +23,8 @@ func NewSyncStorage() SyncStorage {
 // While the function is being run, no other goroutine may access the inner storage.
 // This function is not re-entrant: do not call Atomically in `f`.
 func (s *SyncStorage) Atomically(f func(s *UnsafeStorage)) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	f(&s.inner)
 }
@@ -324,7 +324,7 @@ func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID
 	return playerID, true
 }
 
-func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) {
+func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) bool {
 	if session := s.sessions[sid]; session != nil {
 		if player, ok := session.players[id]; ok {
 			if player.Tx != nil {
@@ -332,8 +332,11 @@ func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) {
 			}
 			player.Tx = nil
 			session.players[id] = player
+			return true
 		}
 	}
+
+	return false
 }
 
 // AwaitingPlayers returns true iff the current session state is awaitingPlayersState.
