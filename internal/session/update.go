@@ -128,7 +128,7 @@ func (u *sessionUpdater) playerAdded(
 	case *TaskStartedState:
 		task := s.getTaskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
+			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
 		}
 		switch task.(type) {
 		case PhotoTask:
@@ -136,7 +136,7 @@ func (u *sessionUpdater) playerAdded(
 			if !ok {
 				img, err := u.m.newImgMetadataForSession(ctx, u.sid, player.ClientID)
 				if err != nil {
-					u.log.Printf("failed to create image metadata in session %s for all players", u.sid)
+					u.log.Printf("failed to create image metadata in session for all players")
 					u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
 					u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
 						u.m.closeSession(ctx, s, tx, u.sid)
@@ -243,7 +243,7 @@ func (u *sessionUpdater) changeStateTo(
 	case *TaskStartedState:
 		task := s.getTaskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
+			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
 		}
 		switch task.(type) {
 		case PhotoTask:
@@ -265,7 +265,7 @@ func (u *sessionUpdater) changeStateTo(
 				return nil
 			})
 			if err != nil {
-				u.log.Printf("failed to create image metadata in session %s for all players", u.sid)
+				u.log.Printf("failed to create image metadata in session for all players")
 				u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
 				u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
 					u.m.closeSession(ctx, s, tx, u.sid)
@@ -307,7 +307,7 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 	case *TaskStartedState:
 		task := s.getTaskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
+			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
 		}
 		if task.NeedsPoll() {
 			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
@@ -410,7 +410,7 @@ func (u *sessionUpdater) makeGameStartedState(s *UnsafeStorage, state *AwaitingP
 func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *GameStartedState) *TaskStartedState {
 	task := s.getTaskByIdx(u.sid, 0)
 	if task == nil {
-		u.log.Panicf("unexpected task disappearance %v in session: %s", 0, u.sid)
+		u.log.Panicf("unexpected task disappearance %v", 0)
 	}
 	return &TaskStartedState{
 		taskIdx:  0,
@@ -424,7 +424,7 @@ func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *Game
 func (u *sessionUpdater) makeNextTaskStartedState(s *UnsafeStorage, state *TaskEndedState) *TaskStartedState {
 	task := s.getTaskByIdx(u.sid, state.taskIdx+1)
 	if task == nil {
-		u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx+1, u.sid)
+		u.log.Panicf("unexpected task disappearance %v", state.taskIdx+1)
 	}
 	return &TaskStartedState{
 		taskIdx:  state.taskIdx + 1,
