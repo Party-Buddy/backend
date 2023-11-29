@@ -33,7 +33,7 @@ func (m *Manager) Storage() *SyncStorage {
 // # Update logic
 //
 // A manager runs a number of goroutines — one for each session, to be precise.
-// Communication happens through the channel stored in m.updaters.
+// Communication happens through the channel accessed via (*UnsafeStorage).updater().
 //
 // The rules are:
 //   - You must not send a message to an updater while holding the storage locked.
