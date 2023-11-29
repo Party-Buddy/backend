@@ -3,7 +3,6 @@ package session
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"log"
 	"party-buddy/internal/db"
 	"party-buddy/internal/util"
@@ -284,38 +283,19 @@ func (m *Manager) makeMsgGameStatus(ctx context.Context, players []Player) Serve
 }
 
 // makeMsgTaskStart must be called only when you acquired storage.mu
-func (m *Manager) makeMsgTaskStart(ctx context.Context, sid SessionID, clientID ClientID, taskIdx int, deadline time.Time) ServerTx {
-	msg := &MsgTaskStart{
+func (m *Manager) makeMsgTaskStart(
+	ctx context.Context,
+	taskIdx int,
+	deadline time.Time,
+	opts *[]string,
+	imgID *ImageID,
+) ServerTx {
+	return &MsgTaskStart{
 		TaskIdx:  taskIdx,
 		Deadline: deadline,
+		Options:  opts,
+		ImgID:    imgID,
 	}
-	// ignore ok because session must exist
-	session, _ := m.storage.inner.sessionByID(sid)
-	switch t := session.game.Tasks[taskIdx].(type) {
-	case ChoiceTask:
-		msg.Options = &t.Options
-	case PhotoTask:
-		var err error
-		var imgID uuid.NullUUID
-		err = m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
-			imgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
-			if err != nil {
-				return err
-			}
-			err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), imgID.UUID)
-			if err != nil {
-				return err
-			}
-			tx.Commit(ctx)
-			return nil
-		})
-		if err != nil {
-			return m.makeMsgError(ctx, ErrInternal)
-		}
-		i := ImageID(imgID)
-		msg.ImgID = &i
-	}
-	return msg
 }
 
 func (m *Manager) makeMsgPollStart(
@@ -346,4 +326,10 @@ func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) Serv
 func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerID]struct{}) ServerTx {
 	// TODO
 	return nil
+}
+
+func (m *Manager) sendMsgErrorToAllPlayers(ctx context.Context, sid SessionID, s *UnsafeStorage, err error) {
+	for _, tx := range s.PlayerTxs(sid) {
+		m.sendToPlayer(tx, m.makeMsgError(ctx, err))
+	}
 }

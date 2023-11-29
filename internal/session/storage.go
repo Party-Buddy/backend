@@ -372,7 +372,6 @@ func (s *UnsafeStorage) getTaskByIdx(sid SessionID, taskIdx int) Task {
 		if taskIdx < 0 || taskIdx >= len(session.game.Tasks) {
 			return nil
 		}
-
 		return session.game.Tasks[taskIdx]
 	}
 	return nil
