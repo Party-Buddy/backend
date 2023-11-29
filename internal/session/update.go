@@ -15,8 +15,9 @@ type updateMsg interface {
 }
 
 type updateMsgPlayerAdded struct {
-	ctx      context.Context
-	playerID PlayerID
+	ctx         context.Context
+	playerID    PlayerID
+	reconnected bool
 }
 
 func (*updateMsgPlayerAdded) isUpdateMsg() {}
@@ -67,7 +68,7 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 			u.m.storage.Atomically(func(s *UnsafeStorage) {
 				switch msg := msg.(type) {
 				case *updateMsgPlayerAdded:
-					u.playerAdded(msg.ctx, s, msg.playerID)
+					u.playerAdded(msg.ctx, s, msg.playerID, msg.reconnected)
 				case *updateMsgRemovePlayer:
 					u.removePlayer(msg.ctx, s, msg.playerID)
 				case *updateMsgChangeStateTo:
@@ -78,7 +79,12 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 	}
 }
 
-func (u *sessionUpdater) playerAdded(ctx context.Context, s *UnsafeStorage, playerID PlayerID) {
+func (u *sessionUpdater) playerAdded(
+	ctx context.Context,
+	s *UnsafeStorage,
+	playerID PlayerID,
+	reconnected bool,
+) {
 	player, err := s.PlayerByID(u.sid, playerID)
 	if err != nil {
 		u.log.Printf("while handling added player: %s", err)
@@ -96,6 +102,35 @@ func (u *sessionUpdater) playerAdded(ctx context.Context, s *UnsafeStorage, play
 			<-u.deadline.C
 		}
 	}
+
+	game, _ := s.SessionGame(u.sid)
+	joined := u.m.makeMsgJoined(ctx, player.ID, u.sid, &game)
+	u.m.sendToPlayer(player.tx, joined)
+
+	gameStatus := u.m.makeMsgGameStatus(ctx, s.Players(u.sid))
+
+	if reconnected {
+		u.m.sendToPlayer(player.tx, gameStatus)
+	} else {
+		for _, tx := range s.PlayerTxs(u.sid) {
+			u.m.sendToPlayer(tx, gameStatus)
+		}
+	}
+
+	var stateMessage ServerTx
+	switch state := s.sessionState(u.sid).(type) {
+	case *AwaitingPlayersState:
+		stateMessage = u.m.makeMsgWaiting(ctx, state.playersReady)
+	case *GameStartedState:
+		stateMessage = u.m.makeMsgGameStart(ctx, state.deadline)
+	case *TaskStartedState:
+		stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline)
+	case *PollStartedState:
+		stateMessage = u.m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
+	case *TaskEndedState:
+		stateMessage = u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results)
+	}
+	u.m.sendToPlayer(player.tx, stateMessage)
 }
 
 func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, playerID PlayerID) {

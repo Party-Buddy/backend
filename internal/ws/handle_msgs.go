@@ -10,7 +10,7 @@ import (
 )
 
 func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataChan session.TxChan) {
-	playerID, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, servDataChan)
+	player, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, servDataChan)
 	if err != nil {
 		var errMsg ws.MessageError
 		switch {
@@ -34,5 +34,5 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 		c.dispose(ctx)
 		return
 	}
-	c.playerID = &playerID
+	c.playerID = &player.ID
 }

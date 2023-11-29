@@ -192,7 +192,7 @@ func (s *UnsafeStorage) Players(sid SessionID) (players []Player) {
 // PlayerTxs returns a Tx channel for each player in a session.
 func (s *UnsafeStorage) PlayerTxs(sid SessionID) (txs []TxChan) {
 	s.ForEachPlayer(sid, func(player Player) {
-		txs = append(txs, player.Tx)
+		txs = append(txs, player.tx)
 	})
 	return
 }
@@ -327,10 +327,10 @@ func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID
 func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) bool {
 	if session := s.sessions[sid]; session != nil {
 		if player, ok := session.players[id]; ok {
-			if player.Tx != nil {
-				close(player.Tx)
+			if player.tx != nil {
+				close(player.tx)
 			}
-			player.Tx = nil
+			player.tx = nil
 			session.players[id] = player
 			return true
 		}

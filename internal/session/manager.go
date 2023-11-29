@@ -95,7 +95,6 @@ outer:
 //
 // DANGER: you MUST NOT call this method while holding the storage's mutex,
 // or you WILL get deadlocks.
-// Consider using lockStorageThenUpdate instead if you need access to the storage.
 func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
 	var tx chan<- updateMsg
 	var ok bool
@@ -115,19 +114,6 @@ func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
 		})
 	} else {
 		tx <- msg
-	}
-}
-
-// lockStorageThenUpdate locks the storage and runs the function.
-// Once it returns, the storage is unlocked and the messages are sent to the updater.
-func (m *Manager) lockStorageThenUpdate(sid SessionID, f func(s *UnsafeStorage) []updateMsg) {
-	var msgs []updateMsg
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		msgs = f(s)
-	})
-
-	for _, msg := range msgs {
-		m.sendToUpdater(sid, msg)
 	}
 }
 
@@ -200,37 +186,49 @@ func (m *Manager) JoinSession(
 	clientID ClientID,
 	nickname string,
 	tx TxChan,
-) (playerID PlayerID, err error) {
-	m.lockStorageThenUpdate(sid, func(s *UnsafeStorage) []updateMsg {
+) (player Player, err error) {
+	var reconnected bool
+
+	m.storage.Atomically(func(s *UnsafeStorage) {
 		if !s.SessionExists(sid) {
 			err = ErrNoSession
-			return nil
+			return
 		}
-		if player, err := s.PlayerByClientID(sid, clientID); err == nil {
-			playerID = player.ID
-			return m.reconnect(ctx, s, sid, &player, tx)
+		if player, err = s.PlayerByClientID(sid, clientID); err == nil {
+			reconnected = true
+			m.sendToPlayer(player.tx, m.makeMsgError(ctx, ErrReconnected))
+			m.closePlayerTx(s, sid, player.ID)
+			return
 		}
 		if !s.AwaitingPlayers(sid) {
 			err = ErrGameInProgress
-			return nil
+			return
 		}
 		if s.ClientBanned(sid, clientID) {
 			err = ErrClientBanned
-			return nil
+			return
 		}
 		if s.HasPlayerNickname(sid, nickname) {
 			err = ErrNicknameUsed
-			return nil
+			return
 		}
 		if s.SessionFull(sid) {
 			err = ErrLobbyFull
-			return nil
+			return
 		}
 
-		player := util.Must(s.addPlayer(sid, clientID, nickname, tx))
-		playerID = player.ID
-		return m.join(ctx, s, sid, &player, false)
+		// note: we must add the player inside the critical section.
+		// we don't want to end up accepting two simultaneous requests to join.
+		player = util.Must(s.addPlayer(sid, clientID, nickname, tx))
 	})
+
+	if err != nil {
+		m.sendToUpdater(sid, &updateMsgPlayerAdded{
+			ctx:         ctx,
+			playerID:    player.ID,
+			reconnected: reconnected,
+		})
+	}
 
 	return
 }
@@ -241,66 +239,6 @@ func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID Play
 		ctx:      ctx,
 		playerID: playerID,
 	})
-}
-
-// # Event handlers
-
-func (m *Manager) reconnect(
-	ctx context.Context,
-	s *UnsafeStorage,
-	sid SessionID,
-	player *Player,
-	tx TxChan,
-) []updateMsg {
-	m.sendToPlayer(player.Tx, m.makeMsgError(ctx, ErrReconnected))
-	m.closePlayerTx(s, sid, player.ID)
-
-	return m.join(ctx, s, sid, player, true)
-}
-
-func (m *Manager) join(
-	ctx context.Context,
-	s *UnsafeStorage,
-	sid SessionID,
-	player *Player,
-	reconnect bool,
-) []updateMsg {
-	game, _ := s.SessionGame(sid)
-	joined := m.makeMsgJoined(ctx, player.ID, sid, &game)
-	m.sendToPlayer(player.Tx, joined)
-
-	gameStatus := m.makeMsgGameStatus(ctx, s.Players(sid))
-
-	if reconnect {
-		m.sendToPlayer(player.Tx, gameStatus)
-	} else {
-		for _, tx := range s.PlayerTxs(sid) {
-			m.sendToPlayer(tx, gameStatus)
-		}
-	}
-
-	// TODO: move to updater
-	var stateMessage ServerTx
-	switch state := s.sessionState(sid).(type) {
-	case *AwaitingPlayersState:
-		stateMessage = m.makeMsgWaiting(ctx, state.playersReady)
-	case *GameStartedState:
-		stateMessage = m.makeMsgGameStart(ctx, state.deadline)
-	case *TaskStartedState:
-		stateMessage = m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline)
-	case *PollStartedState:
-		stateMessage = m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
-	case *TaskEndedState:
-		stateMessage = m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results)
-	}
-	m.sendToPlayer(player.Tx, stateMessage)
-
-	return []updateMsg{
-		&updateMsgPlayerAdded{
-			ctx:      ctx,
-			playerID: player.ID,
-		},
-	}
 }
 
 // closeSession terminates the session and removes it from the storage.

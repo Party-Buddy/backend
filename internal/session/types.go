@@ -134,7 +134,7 @@ type Player struct {
 	ID       PlayerID
 	ClientID ClientID
 	Nickname string
-	Tx       TxChan
+	tx       TxChan
 }
 
 type PollOption struct {
