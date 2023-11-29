@@ -224,26 +224,49 @@ func (u *sessionUpdater) changeStateTo(
 	s.setSessionState(u.sid, nextState)
 }
 
+func (u *sessionUpdater) sendMsgErrorToAllPlayers(ctx context.Context, s *UnsafeStorage, err error) {
+	for _, tx := range s.PlayerTxs(u.sid) {
+		u.m.sendToPlayer(tx, u.m.makeMsgError(ctx, err))
+	}
+}
+
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
 	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
-		for _, tx := range s.PlayerTxs(u.sid) {
-			u.m.sendToPlayer(tx, u.m.makeMsgError(ctx, ErrNoOwnerTimeout))
-		}
-
+		u.sendMsgErrorToAllPlayers(ctx, s, ErrNoOwnerTimeout)
 		u.changeStateTo(ctx, s, nil)
 
 	case *GameStartedState:
 		u.changeStateTo(ctx, s, u.makeFirstTaskStartedState(s, state))
 
 	case *TaskStartedState:
-		// TODO: go either to PollStartedState or TaskEndedState
+		task := s.getTaskByIdx(u.sid, state.taskIdx)
+		if task == nil {
+			u.sendMsgErrorToAllPlayers(ctx, s, ErrTaskDisappeared)
+			u.changeStateTo(ctx, s, nil)
+			return
+		}
+		switch task.(type) {
+		case PhotoTask: // poll task
+			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
+		case TextTask: // poll task
+			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
+		case CheckedTextTask: // NOT poll task
+			u.changeStateTo(ctx, s, u.makePlainTaskEndedState(s, state))
+		case ChoiceTask: // NOT poll task
+			u.changeStateTo(ctx, s, u.makePlainTaskEndedState(s, state))
+		}
 
 	case *PollStartedState:
 		u.changeStateTo(ctx, s, u.makePollTaskEndedState(s, state))
 
 	case *TaskEndedState:
-		// TODO: go either to TaskStartedState or finish the game
+		if s.hasNextTask(u.sid, state.taskIdx) {
+			u.changeStateTo(ctx, s, u.makeNextTaskStartedState(s, state))
+		} else {
+			// TODO: finish game
+			u.changeStateTo(ctx, s, nil)
+		}
 	}
 }
 

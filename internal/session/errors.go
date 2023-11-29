@@ -15,3 +15,7 @@ var (
 	ErrNicknameUsed   = errors.New("nickname is in use")
 	ErrLobbyFull      = errors.New("lobby is full")
 )
+
+var (
+	ErrTaskDisappeared = errors.New("unexpected task disappearance")
+)

@@ -366,3 +366,22 @@ func (s *UnsafeStorage) AwaitingPlayers(sid SessionID) bool {
 	}
 	return false
 }
+
+func (s *UnsafeStorage) getTaskByIdx(sid SessionID, taskIdx int) Task {
+	if session := s.sessions[sid]; session != nil {
+		if taskIdx < 0 || taskIdx >= len(session.game.Tasks) {
+			return nil
+		}
+
+		return session.game.Tasks[taskIdx]
+	}
+	return nil
+}
+
+func (s *UnsafeStorage) hasNextTask(sid SessionID, taskIdx int) bool {
+	if session := s.sessions[sid]; session != nil {
+		return taskIdx >= 0 && taskIdx+1 < len(session.game.Tasks)
+
+	}
+	return false
+}
