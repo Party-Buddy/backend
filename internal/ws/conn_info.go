@@ -99,8 +99,11 @@ func (c *ConnInfo) runServeToWriterConverter(
 					joinedMsg := converters.ToMessageJoined(*m)
 					refID := msgIDFromContext(m.Context())
 					joinedMsg.RefID = &refID
-
 					msgChan <- &joinedMsg
+
+				case *session.MsgTaskStart:
+					taskStartMsg := converters.ToMessageTaskStart(*m)
+					msgChan <- &taskStartMsg
 				}
 
 			}

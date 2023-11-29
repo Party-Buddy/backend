@@ -398,3 +398,16 @@ type MessageJoined struct {
 }
 
 func (*MessageJoined) isRespMessage() {}
+
+type MessageTaskStart struct {
+	BaseMessage
+
+	TaskIdx  uint8     `json:"task-idx"`
+	Deadline time.Time `json:"deadline"`
+
+	Options *[]string `json:"options,omitempty"`
+
+	ImgURI *string `json:"img-uri,omitempty"`
+}
+
+func (*MessageTaskStart) isRespMessage() {}
