@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"log"
 	"party-buddy/internal/db"
 	"party-buddy/internal/util"
@@ -282,7 +283,6 @@ func (m *Manager) makeMsgGameStatus(ctx context.Context, players []Player) Serve
 	return nil
 }
 
-// makeMsgTaskStart must be called only when you acquired storage.mu
 func (m *Manager) makeMsgTaskStart(
 	ctx context.Context,
 	taskIdx int,
@@ -332,4 +332,26 @@ func (m *Manager) sendMsgErrorToAllPlayers(ctx context.Context, sid SessionID, s
 	for _, tx := range s.PlayerTxs(sid) {
 		m.sendToPlayer(tx, m.makeMsgError(ctx, err))
 	}
+}
+
+func (m *Manager) newImgMetadataForSession(ctx context.Context, sid SessionID, clientID ClientID) (ImageID, error) {
+	var err error
+	var dbImgID uuid.NullUUID
+	err = m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
+		dbImgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
+		if err != nil {
+			return err
+		}
+		err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), dbImgID.UUID)
+		if err != nil {
+			return err
+		}
+		tx.Commit(ctx)
+		return nil
+	})
+	if err != nil {
+		log.Printf("failed to create image metadata with err: %s", err)
+		return ImageID{}, err
+	}
+	return ImageID(dbImgID), nil
 }

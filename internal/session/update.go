@@ -2,9 +2,7 @@ package session
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"log"
-	"party-buddy/internal/db"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -130,7 +128,7 @@ func (u *sessionUpdater) playerAdded(
 	case *TaskStartedState:
 		task := s.getTaskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected task disappearance ")
+			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
 		}
 		stateMessage = u.prepareMsgTaskStart(ctx, state, task, player)
 
@@ -202,27 +200,12 @@ func (u *sessionUpdater) prepareMsgTaskStart(
 			imgID := ImageID(answer.(PhotoTaskAnswer))
 			return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, nil, &imgID)
 		}
-		var err error
-		var dbImgID uuid.NullUUID
-		err = u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
-			dbImgID, err = db.CreateImageMetadata(tx, ctx, player.ClientID.UUID())
-			if err != nil {
-				return err
-			}
-			err = db.CreateSessionImageRef(ctx, tx, u.sid.UUID(), dbImgID.UUID)
-			if err != nil {
-				return err
-			}
-			tx.Commit(ctx)
-			return nil
-		})
+		img, err := u.m.newImgMetadataForSession(ctx, u.sid, player.ClientID)
 		if err != nil {
-			u.log.Printf("failed to create image metadata with err: %s", err)
 			return u.m.makeMsgError(ctx, ErrInternal)
 		}
-		i := ImageID(dbImgID)
-		state.answers[player.ID] = PhotoTaskAnswer(i)
-		return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, nil, &i)
+		state.answers[player.ID] = PhotoTaskAnswer(img)
+		return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, nil, &img)
 	default:
 		return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, nil, nil)
 	}
@@ -265,7 +248,7 @@ func (u *sessionUpdater) changeStateTo(
 	case *TaskStartedState:
 		task := s.getTaskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected task disappearance ")
+			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
 		}
 		s.ForEachPlayer(u.sid, func(p Player) {
 			u.m.sendToPlayer(p.tx, u.prepareMsgTaskStart(ctx, state, task, p))
@@ -295,7 +278,7 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 	case *TaskStartedState:
 		task := s.getTaskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected disappearance of task with idx = %v", state.taskIdx)
+			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
 		}
 		if task.NeedsPoll() {
 			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
@@ -398,7 +381,7 @@ func (u *sessionUpdater) makeGameStartedState(s *UnsafeStorage, state *AwaitingP
 func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *GameStartedState) *TaskStartedState {
 	task := s.getTaskByIdx(u.sid, 0)
 	if task == nil {
-		u.log.Panicf("unexpected disappearance of task with idx = 0")
+		u.log.Panicf("unexpected task disappearance %v in session: %s", 0, u.sid)
 	}
 	return &TaskStartedState{
 		taskIdx:  0,
@@ -406,12 +389,13 @@ func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *Game
 		answers:  make(map[PlayerID]TaskAnswer),
 		ready:    make(map[PlayerID]struct{}),
 	}
+
 }
 
 func (u *sessionUpdater) makeNextTaskStartedState(s *UnsafeStorage, state *TaskEndedState) *TaskStartedState {
 	task := s.getTaskByIdx(u.sid, state.taskIdx+1)
 	if task == nil {
-		u.log.Panicf("unexpected disappearance of task with idx = %v", state.taskIdx+1)
+		u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx+1, u.sid)
 	}
 	return &TaskStartedState{
 		taskIdx:  state.taskIdx + 1,
