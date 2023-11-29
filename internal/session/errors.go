@@ -5,6 +5,7 @@ import "errors"
 var (
 	ErrNoOwnerTimeout = errors.New("timed out waiting for the owner to join")
 	ErrReconnected    = errors.New("client joined the session from another connection")
+	ErrOwnerLeft      = errors.New("owner left the session")
 )
 
 var (

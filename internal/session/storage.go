@@ -8,13 +8,13 @@ import (
 
 // A SyncStorage encapsulates an [UnsafeStorage] and provides a thread-safe interface to the storage.
 type SyncStorage struct {
-	mtx   sync.Mutex
+	mu    sync.Mutex
 	inner UnsafeStorage
 }
 
 func NewSyncStorage() SyncStorage {
 	return SyncStorage{
-		mtx:   sync.Mutex{},
+		mu:    sync.Mutex{},
 		inner: NewUnsafeStorage(),
 	}
 }
@@ -23,8 +23,8 @@ func NewSyncStorage() SyncStorage {
 // While the function is being run, no other goroutine may access the inner storage.
 // This function is not re-entrant: do not call Atomically in `f`.
 func (s *SyncStorage) Atomically(f func(s *UnsafeStorage)) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	f(&s.inner)
 }
@@ -34,12 +34,14 @@ func (s *SyncStorage) Atomically(f func(s *UnsafeStorage)) {
 type UnsafeStorage struct {
 	sessions    map[SessionID]*session
 	inviteCodes map[InviteCode]SessionID
+	updaters    map[SessionID]chan<- updateMsg
 }
 
 func NewUnsafeStorage() UnsafeStorage {
 	return UnsafeStorage{
 		sessions:    make(map[SessionID]*session),
 		inviteCodes: make(map[InviteCode]SessionID),
+		updaters:    make(map[SessionID]chan<- updateMsg),
 	}
 }
 
@@ -92,7 +94,7 @@ func (s *UnsafeStorage) newSession(
 	requireReady bool,
 	playersMax int,
 	deadline time.Time,
-) (sid SessionID, code InviteCode, err error) {
+) (sid SessionID, code InviteCode, updateChan chan updateMsg, err error) {
 	code, err = s.newInviteCode()
 	if err != nil {
 		return
@@ -116,6 +118,9 @@ func (s *UnsafeStorage) newSession(
 		},
 	}
 	s.inviteCodes[code] = sid
+
+	updateChan = make(chan updateMsg)
+	s.updaters[sid] = updateChan
 
 	return
 }
@@ -192,7 +197,7 @@ func (s *UnsafeStorage) Players(sid SessionID) (players []Player) {
 // PlayerTxs returns a Tx channel for each player in a session.
 func (s *UnsafeStorage) PlayerTxs(sid SessionID) (txs []TxChan) {
 	s.ForEachPlayer(sid, func(player Player) {
-		txs = append(txs, player.Tx)
+		txs = append(txs, player.tx)
 	})
 	return
 }
@@ -237,6 +242,20 @@ func (s *UnsafeStorage) setSessionState(sid SessionID, state State) {
 	if session := s.sessions[sid]; session != nil {
 		session.state = state
 	}
+}
+
+// updater returns the updater associated with a session.
+func (s *UnsafeStorage) updater(sid SessionID) chan<- updateMsg {
+	return s.updaters[sid]
+}
+
+func (s *UnsafeStorage) closeUpdater(sid SessionID) bool {
+	if updater := s.updaters[sid]; updater != nil {
+		close(updater)
+		delete(s.updaters, sid)
+		return true
+	}
+	return false
 }
 
 // HasPlayerNickname returns true iff there's a player with the given nickname in a session.
@@ -324,16 +343,19 @@ func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID
 	return playerID, true
 }
 
-func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) {
+func (s *UnsafeStorage) closePlayerTx(sid SessionID, id PlayerID) bool {
 	if session := s.sessions[sid]; session != nil {
 		if player, ok := session.players[id]; ok {
-			if player.Tx != nil {
-				close(player.Tx)
+			if player.tx != nil {
+				close(player.tx)
 			}
-			player.Tx = nil
+			player.tx = nil
 			session.players[id] = player
+			return true
 		}
 	}
+
+	return false
 }
 
 // AwaitingPlayers returns true iff the current session state is awaitingPlayersState.

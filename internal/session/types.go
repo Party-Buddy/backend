@@ -119,6 +119,7 @@ type session struct {
 	clients       map[ClientID]PlayerID
 	bannedClients map[ClientID]struct{}
 	state         State
+	// TODO: scoreboard
 }
 
 type Game struct {
@@ -133,7 +134,7 @@ type Player struct {
 	ID       PlayerID
 	ClientID ClientID
 	Nickname string
-	Tx       TxChan
+	tx       TxChan
 }
 
 type PollOption struct {

@@ -61,6 +61,8 @@ type TaskStartedState struct {
 	deadline time.Time
 
 	// The players' current answers.
+	//
+	// NOTE: this may include answers from players that already left.
 	answers map[PlayerID]TaskAnswer
 
 	// A set of players that expressed their readiness.
@@ -83,6 +85,8 @@ type PollStartedState struct {
 	deadline time.Time
 
 	// The options to choose from.
+	//
+	// NOTE: this may include options benefitting players that already left.
 	options []PollOption
 
 	// Which options (represented by their indices into `options`) people chose.
