@@ -130,7 +130,28 @@ func (u *sessionUpdater) playerAdded(
 		if task == nil {
 			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
 		}
-		stateMessage = u.prepareMsgTaskStart(ctx, state, task, player)
+		switch task.(type) {
+		case PhotoTask:
+			answer, ok := state.answers[playerID]
+			if !ok {
+				img, err := u.m.newImgMetadataForSession(ctx, u.sid, player.ClientID)
+				if err != nil {
+					u.log.Printf("failed to create image metadata in session %s for all players", u.sid)
+					u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
+					u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
+						u.m.closeSession(ctx, s, tx, u.sid)
+						tx.Commit(ctx)
+						return nil
+					})
+					return
+				}
+				answer = PhotoTaskAnswer(img)
+			}
+			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, answer)
+
+		default:
+			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, nil)
+		}
 
 	case *PollStartedState:
 		stateMessage = u.m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
@@ -185,32 +206,6 @@ func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, pla
 	}
 }
 
-func (u *sessionUpdater) prepareMsgTaskStart(
-	ctx context.Context,
-	state *TaskStartedState,
-	task Task,
-	player Player,
-) ServerTx {
-	switch t := task.(type) {
-	case ChoiceTask:
-		return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, &t.Options, nil)
-	case PhotoTask:
-		answer, ok := state.answers[player.ID]
-		if ok {
-			imgID := ImageID(answer.(PhotoTaskAnswer))
-			return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, nil, &imgID)
-		}
-		img, err := u.m.newImgMetadataForSession(ctx, u.sid, player.ClientID)
-		if err != nil {
-			return u.m.makeMsgError(ctx, ErrInternal)
-		}
-		state.answers[player.ID] = PhotoTaskAnswer(img)
-		return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, nil, &img)
-	default:
-		return u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, nil, nil)
-	}
-}
-
 // changeStateTo changes the current session state to the nextState.
 // If the nextState is nil, the session is closed.
 func (u *sessionUpdater) changeStateTo(
@@ -250,9 +245,43 @@ func (u *sessionUpdater) changeStateTo(
 		if task == nil {
 			u.log.Panicf("unexpected task disappearance %v in session: %s", state.taskIdx, u.sid)
 		}
-		s.ForEachPlayer(u.sid, func(p Player) {
-			u.m.sendToPlayer(p.tx, u.prepareMsgTaskStart(ctx, state, task, p))
-		})
+		switch task.(type) {
+		case PhotoTask:
+			err := u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
+				var err error
+				s.ForEachPlayer(u.sid, func(p Player) {
+					var img ImageID
+					img, err = u.m.newImgMetadataForSession(ctx, u.sid, p.ClientID)
+					if err != nil {
+						return
+					}
+					state.answers[p.ID] = PhotoTaskAnswer(img)
+				})
+				if err != nil {
+					return err
+				}
+
+				tx.Commit(ctx)
+				return nil
+			})
+			if err != nil {
+				u.log.Printf("failed to create image metadata in session %s for all players", u.sid)
+				u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
+				u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
+					u.m.closeSession(ctx, s, tx, u.sid)
+					tx.Commit(ctx)
+					return nil
+				})
+				return
+			}
+			s.ForEachPlayer(u.sid, func(p Player) {
+				u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, state.answers[p.ID]))
+			})
+		default:
+			for _, tx := range s.PlayerTxs(u.sid) {
+				u.m.sendToPlayer(tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, nil))
+			}
+		}
 
 	case *PollStartedState:
 		// TODO

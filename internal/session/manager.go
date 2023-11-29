@@ -287,15 +287,26 @@ func (m *Manager) makeMsgTaskStart(
 	ctx context.Context,
 	taskIdx int,
 	deadline time.Time,
-	opts *[]string,
-	imgID *ImageID,
+	task Task,
+	answer TaskAnswer,
 ) ServerTx {
-	return &MsgTaskStart{
+	msg := &MsgTaskStart{
+		baseTx:   baseTx{Ctx: ctx},
 		TaskIdx:  taskIdx,
 		Deadline: deadline,
-		Options:  opts,
-		ImgID:    imgID,
 	}
+	switch t := task.(type) {
+	case ChoiceTask:
+		msg.Options = &t.Options
+		return msg
+	case PhotoTask:
+		i := ImageID(answer.(PhotoTaskAnswer))
+		msg.ImgID = &i
+		return msg
+	default:
+		return msg
+	}
+
 }
 
 func (m *Manager) makeMsgPollStart(
