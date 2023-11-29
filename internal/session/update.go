@@ -242,6 +242,7 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 	case *TaskStartedState:
 		task := s.getTaskByIdx(u.sid, state.taskIdx)
 		if task == nil {
+			u.log.Printf("unexpected disappearance of task with idx = %v", state.taskIdx)
 			u.sendMsgErrorToAllPlayers(ctx, s, ErrTaskDisappeared)
 			u.changeStateTo(ctx, s, nil)
 			return
@@ -350,13 +351,31 @@ func (u *sessionUpdater) makeGameStartedState(s *UnsafeStorage, state *AwaitingP
 }
 
 func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *GameStartedState) *TaskStartedState {
-	// TODO
-	return nil
+	task := s.getTaskByIdx(u.sid, 0)
+	if task == nil {
+		u.log.Printf("unexpected disappearance of task with idx = 0")
+		return nil
+	}
+	return &TaskStartedState{
+		taskIdx:  0,
+		deadline: time.Now().Add(task.GetTaskDuration()), // TODO: calculate task deadline as in docs
+		answers:  make(map[PlayerID]TaskAnswer),
+		ready:    make(map[PlayerID]struct{}),
+	}
 }
 
 func (u *sessionUpdater) makeNextTaskStartedState(s *UnsafeStorage, state *TaskEndedState) *TaskStartedState {
-	// TODO
-	return nil
+	task := s.getTaskByIdx(u.sid, state.taskIdx+1)
+	if task == nil {
+		u.log.Printf("unexpected disappearance of task with idx = 0")
+		return nil
+	}
+	return &TaskStartedState{
+		taskIdx:  state.taskIdx + 1,
+		deadline: time.Now().Add(task.GetTaskDuration()), // TODO: calculate task deadline as in docs
+		answers:  make(map[PlayerID]TaskAnswer),
+		ready:    make(map[PlayerID]struct{}),
+	}
 }
 
 func (u *sessionUpdater) makePollStartedState(s *UnsafeStorage, state *TaskStartedState) *PollStartedState {
