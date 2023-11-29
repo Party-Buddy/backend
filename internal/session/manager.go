@@ -13,18 +13,16 @@ import (
 )
 
 type Manager struct {
-	db       *db.DBPool
-	storage  SyncStorage
-	updaters map[SessionID]chan<- updateMsg
-	runChan  chan runMsg
+	db      *db.DBPool
+	storage SyncStorage
+	runChan chan runMsg
 }
 
 func NewManager(db *db.DBPool) *Manager {
 	return &Manager{
-		db:       db,
-		storage:  NewSyncStorage(),
-		runChan:  make(chan runMsg),
-		updaters: make(map[SessionID]chan<- updateMsg),
+		db:      db,
+		storage: NewSyncStorage(),
+		runChan: make(chan runMsg),
 	}
 }
 
@@ -96,24 +94,16 @@ outer:
 // DANGER: you MUST NOT call this method while holding the storage's mutex,
 // or you WILL get deadlocks.
 func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
-	var tx chan<- updateMsg
-	var ok bool
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		// FIXME: move updaters to storage
-		tx, ok = m.updaters[sid]
-	})
-
-	if !ok {
-		return
-	}
-
 	if msg == nil {
 		m.storage.Atomically(func(s *UnsafeStorage) {
-			close(tx)
-			delete(m.updaters, sid)
+			s.closeUpdater(sid)
 		})
 	} else {
-		tx <- msg
+		var updaterChan chan<- updateMsg
+		m.storage.Atomically(func(s *UnsafeStorage) {
+			updaterChan = s.updater(sid)
+		})
+		updaterChan <- msg
 	}
 }
 
@@ -134,7 +124,9 @@ func (m *Manager) NewSession(
 
 	m.storage.Atomically(func(s *UnsafeStorage) {
 		deadline := time.Now().Add(NoOwnerTimeout)
-		sid, code, err = s.newSession(game, owner, requireReady, playersMax, deadline)
+		sid, code, updateChan, err = s.newSession(
+			game, owner, requireReady, playersMax, deadline,
+		)
 		if err != nil {
 			return
 		}
@@ -153,9 +145,6 @@ func (m *Manager) NewSession(
 				return
 			}
 		}
-
-		updateChan = make(chan updateMsg)
-		m.updaters[sid] = updateChan
 	})
 
 	if err != nil {
@@ -255,12 +244,7 @@ func (m *Manager) closeSession(
 	})
 
 	db.RemoveSessionImageRefs(ctx, tx, sid.UUID())
-
-	if updater := m.updaters[sid]; updater != nil {
-		close(updater)
-	}
-	delete(m.updaters, sid)
-
+	s.closeUpdater(sid)
 	s.removeSession(sid)
 }
 

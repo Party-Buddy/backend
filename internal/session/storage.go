@@ -34,12 +34,14 @@ func (s *SyncStorage) Atomically(f func(s *UnsafeStorage)) {
 type UnsafeStorage struct {
 	sessions    map[SessionID]*session
 	inviteCodes map[InviteCode]SessionID
+	updaters    map[SessionID]chan<- updateMsg
 }
 
 func NewUnsafeStorage() UnsafeStorage {
 	return UnsafeStorage{
 		sessions:    make(map[SessionID]*session),
 		inviteCodes: make(map[InviteCode]SessionID),
+		updaters:    make(map[SessionID]chan<- updateMsg),
 	}
 }
 
@@ -92,7 +94,7 @@ func (s *UnsafeStorage) newSession(
 	requireReady bool,
 	playersMax int,
 	deadline time.Time,
-) (sid SessionID, code InviteCode, err error) {
+) (sid SessionID, code InviteCode, updateChan chan updateMsg, err error) {
 	code, err = s.newInviteCode()
 	if err != nil {
 		return
@@ -116,6 +118,9 @@ func (s *UnsafeStorage) newSession(
 		},
 	}
 	s.inviteCodes[code] = sid
+
+	updateChan = make(chan updateMsg)
+	s.updaters[sid] = updateChan
 
 	return
 }
@@ -237,6 +242,20 @@ func (s *UnsafeStorage) setSessionState(sid SessionID, state State) {
 	if session := s.sessions[sid]; session != nil {
 		session.state = state
 	}
+}
+
+// updater returns the updater associated with a session.
+func (s *UnsafeStorage) updater(sid SessionID) chan<- updateMsg {
+	return s.updaters[sid]
+}
+
+func (s *UnsafeStorage) closeUpdater(sid SessionID) bool {
+	if updater := s.updaters[sid]; updater != nil {
+		close(updater)
+		delete(s.updaters, sid)
+		return true
+	}
+	return false
 }
 
 // HasPlayerNickname returns true iff there's a player with the given nickname in a session.
