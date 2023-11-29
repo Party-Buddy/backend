@@ -411,3 +411,54 @@ type MessageTaskStart struct {
 }
 
 func (*MessageTaskStart) isRespMessage() {}
+
+type Answer interface {
+	isAnswer()
+}
+
+type CheckedWordAnswer struct {
+	// Value of answer for the checked text task
+	Value       string `json:"value"`
+	PlayerCount uint16 `json:"player-count"`
+	Correct     bool   `json:"correct"`
+}
+
+func (*CheckedWordAnswer) isAnswer() {}
+
+type PhotoAnswer struct {
+	// Value should be an image uri
+	Value string `json:"value"`
+	Votes uint16 `json:"votes"`
+}
+
+func (*PhotoAnswer) isAnswer() {}
+
+type WordAnswer struct {
+	// Value of answer for text task
+	Value string `json:"value"`
+	Votes uint16 `json:"votes"`
+}
+
+func (*WordAnswer) isAnswer() {}
+
+type TaskOptionAnswer struct {
+	// Value should be the one option from choice task
+	Value       string `json:"value"`
+	PlayerCount uint16 `json:"player-count"`
+	Correct     bool   `json:"correct"`
+}
+
+func (*TaskOptionAnswer) isAnswer() {}
+
+type MessageTaskEnd struct {
+	BaseMessage
+
+	TaskIdx  uint8     `json:"task-idx"`
+	Deadline time.Time `json:"deadline"`
+
+	Answers []Answer `json:"answers"`
+
+	// TODO: scoreboard
+}
+
+func (*MessageTaskEnd) isRespMessage() {}

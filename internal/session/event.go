@@ -55,9 +55,35 @@ type MsgTaskStart struct {
 
 func (*MsgTaskStart) isServerTx() {}
 
+type EventAnswer interface {
+	isEventAnswer()
+}
+
+type ChoiceEventAnswer string
+type PhotoEventAnswer ImageID
+type TextEventAnswer string
+type CheckedTextEventAnswer string
+
+func (*ChoiceEventAnswer) isEventAnswer()      {}
+func (*PhotoEventAnswer) isEventAnswer()       {}
+func (*TextEventAnswer) isEventAnswer()        {}
+func (*CheckedTextEventAnswer) isEventAnswer() {}
+
+type EventTaskAnswer struct {
+	Value       EventAnswer
+	PlayerCount uint16
+	Correct     bool
+}
+
 type MsgTaskEnd struct {
 	baseTx
 
 	TaskIdx  int
 	Deadline time.Time
+
+	Answers []EventTaskAnswer
+
+	// TODO: scoreboard
 }
+
+func (*MsgTaskEnd) isServerTx() {}

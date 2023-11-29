@@ -104,6 +104,10 @@ func (c *ConnInfo) runServeToWriterConverter(
 				case *session.MsgTaskStart:
 					taskStartMsg := converters.ToMessageTaskStart(*m)
 					msgChan <- &taskStartMsg
+
+				case *session.MsgTaskEnd:
+					taskEndMsg := converters.ToMessageTaskEnd(*m)
+					msgChan <- &taskEndMsg
 				}
 
 			}
