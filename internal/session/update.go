@@ -297,14 +297,9 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 		if task == nil {
 			u.log.Panicf("unexpected disappearance of task with idx = %v", state.taskIdx)
 		}
-		switch task.(type) {
-		case PhotoTask: // poll task
+		if task.NeedsPoll() {
 			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
-		case TextTask: // poll task
-			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
-		case CheckedTextTask: // NOT poll task
-			u.changeStateTo(ctx, s, u.makePlainTaskEndedState(s, state))
-		case ChoiceTask: // NOT poll task
+		} else {
 			u.changeStateTo(ctx, s, u.makePlainTaskEndedState(s, state))
 		}
 
@@ -407,7 +402,7 @@ func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *Game
 	}
 	return &TaskStartedState{
 		taskIdx:  0,
-		deadline: time.Now().Add(task.GetTaskDuration()), // TODO: calculate task deadline as in docs
+		deadline: time.Now().Add(task.GetTaskDuration()),
 		answers:  make(map[PlayerID]TaskAnswer),
 		ready:    make(map[PlayerID]struct{}),
 	}
@@ -420,7 +415,7 @@ func (u *sessionUpdater) makeNextTaskStartedState(s *UnsafeStorage, state *TaskE
 	}
 	return &TaskStartedState{
 		taskIdx:  state.taskIdx + 1,
-		deadline: time.Now().Add(task.GetTaskDuration()), // TODO: calculate task deadline as in docs
+		deadline: time.Now().Add(task.GetTaskDuration()),
 		answers:  make(map[PlayerID]TaskAnswer),
 		ready:    make(map[PlayerID]struct{}),
 	}

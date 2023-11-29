@@ -9,6 +9,8 @@ type Task interface {
 	GetDescription() string
 	GetImageID() ImageID
 	GetTaskDuration() time.Duration
+	NeedsPoll() bool
+
 	isTask() // an unexported marker method to indicate a type is in fact a task
 }
 
@@ -43,6 +45,10 @@ func (t PhotoTask) GetTaskDuration() time.Duration {
 	return t.TaskDuration
 }
 
+func (t PhotoTask) NeedsPoll() bool {
+	return true
+}
+
 type TextTask PollTask
 
 func (t TextTask) GetImageID() ImageID {
@@ -59,6 +65,10 @@ func (t TextTask) GetDescription() string {
 
 func (t TextTask) GetTaskDuration() time.Duration {
 	return t.TaskDuration
+}
+
+func (t TextTask) NeedsPoll() bool {
+	return true
 }
 
 type CheckedTextTask struct {
@@ -83,6 +93,10 @@ func (t CheckedTextTask) GetTaskDuration() time.Duration {
 	return t.TaskDuration
 }
 
+func (t CheckedTextTask) NeedsPoll() bool {
+	return false
+}
+
 type ChoiceTask struct {
 	BaseTask
 
@@ -104,6 +118,10 @@ func (t ChoiceTask) GetDescription() string {
 
 func (t ChoiceTask) GetTaskDuration() time.Duration {
 	return t.TaskDuration
+}
+
+func (t ChoiceTask) NeedsPoll() bool {
+	return false
 }
 
 func (PhotoTask) isTask()       {}
