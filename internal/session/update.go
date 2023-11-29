@@ -258,9 +258,9 @@ func (u *sessionUpdater) changeStateTo(
 		// TODO
 
 	case *TaskEndedState:
-		s.ForEachPlayer(u.sid, func(p Player) {
-			u.m.sendToPlayer(p.tx, u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results))
-		})
+		for _, tx := range s.PlayerTxs(u.sid) {
+			u.m.sendToPlayer(tx, u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results))
+		}
 	}
 
 	s.setSessionState(u.sid, nextState)
