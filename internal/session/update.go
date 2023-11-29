@@ -124,7 +124,7 @@ func (u *sessionUpdater) playerAdded(
 	case *GameStartedState:
 		stateMessage = u.m.makeMsgGameStart(ctx, state.deadline)
 	case *TaskStartedState:
-		stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline)
+		stateMessage = u.m.makeMsgTaskStart(ctx, u.sid, player.ClientID, state.taskIdx, state.deadline)
 	case *PollStartedState:
 		stateMessage = u.m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
 	case *TaskEndedState:
@@ -204,7 +204,7 @@ func (u *sessionUpdater) changeStateTo(
 
 	u.deadline.Reset(nextState.Deadline().Sub(time.Now()))
 
-	switch nextState.(type) {
+	switch state := nextState.(type) {
 	case *AwaitingPlayersState:
 		// TODO
 
@@ -212,13 +212,17 @@ func (u *sessionUpdater) changeStateTo(
 		// TODO
 
 	case *TaskStartedState:
-		// TODO
+		s.ForEachPlayer(u.sid, func(p Player) {
+			u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(ctx, u.sid, p.ClientID, state.taskIdx, state.deadline))
+		})
 
 	case *PollStartedState:
 		// TODO
 
 	case *TaskEndedState:
-		// TODO
+		s.ForEachPlayer(u.sid, func(p Player) {
+			u.m.sendToPlayer(p.tx, u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results))
+		})
 	}
 
 	s.setSessionState(u.sid, nextState)

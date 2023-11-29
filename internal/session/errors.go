@@ -18,4 +18,5 @@ var (
 
 var (
 	ErrTaskDisappeared = errors.New("unexpected task disappearance")
+	ErrInternal        = errors.New("internal error")
 )
