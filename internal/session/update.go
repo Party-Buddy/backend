@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -134,18 +135,8 @@ func (u *sessionUpdater) playerAdded(
 		case PhotoTask:
 			answer, ok := state.answers[playerID]
 			if !ok {
-				img, err := u.m.newImgMetadataForSession(ctx, u.sid, player.ClientID)
-				if err != nil {
-					u.log.Printf("failed to create image metadata in session for all players")
-					u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
-					u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
-						u.m.closeSession(ctx, s, tx, u.sid)
-						tx.Commit(ctx)
-						return nil
-					})
-					return
-				}
-				answer = PhotoTaskAnswer(img)
+				u.log.Panicf("no prepared image player %s (nickname=%q, clientID=%s)",
+					playerID, player.Nickname, player.ClientID)
 			}
 			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, answer)
 
@@ -251,8 +242,10 @@ func (u *sessionUpdater) changeStateTo(
 				var err error
 				s.ForEachPlayer(u.sid, func(p Player) {
 					var img ImageID
-					img, err = u.m.newImgMetadataForSession(ctx, u.sid, p.ClientID)
+					img, err = u.m.newImgMetadataForSession(ctx, tx, u.sid, p.ClientID)
 					if err != nil {
+						err = fmt.Errorf("could not register an image for player %s (nickname=%q, clientID=%s): %w",
+							p.ID, p.Nickname, p.ClientID, err)
 						return
 					}
 					state.answers[p.ID] = PhotoTaskAnswer(img)
@@ -265,7 +258,7 @@ func (u *sessionUpdater) changeStateTo(
 				return nil
 			})
 			if err != nil {
-				u.log.Printf("failed to create image metadata in session for all players")
+				u.log.Printf("failed to create image metadata in session for all players because of err: %s", err)
 				u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
 				u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
 					u.m.closeSession(ctx, s, tx, u.sid)

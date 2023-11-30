@@ -345,23 +345,15 @@ func (m *Manager) sendMsgErrorToAllPlayers(ctx context.Context, sid SessionID, s
 	}
 }
 
-func (m *Manager) newImgMetadataForSession(ctx context.Context, sid SessionID, clientID ClientID) (ImageID, error) {
+func (m *Manager) newImgMetadataForSession(ctx context.Context, tx pgx.Tx, sid SessionID, clientID ClientID) (ImageID, error) {
 	var err error
 	var dbImgID uuid.NullUUID
-	err = m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
-		dbImgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
-		if err != nil {
-			return err
-		}
-		err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), dbImgID.UUID)
-		if err != nil {
-			return err
-		}
-		tx.Commit(ctx)
-		return nil
-	})
+	dbImgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
 	if err != nil {
-		log.Printf("failed to create image metadata with err: %s", err)
+		return ImageID{}, err
+	}
+	err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), dbImgID.UUID)
+	if err != nil {
 		return ImageID{}, err
 	}
 	return ImageID(dbImgID), nil
