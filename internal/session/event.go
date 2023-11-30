@@ -1,6 +1,9 @@
 package session
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type TxChan chan<- ServerTx
 
@@ -36,3 +39,32 @@ type MsgJoined struct {
 }
 
 func (*MsgJoined) isServerTx() {}
+
+type MsgTaskStart struct {
+	baseTx
+
+	TaskIdx  int
+	Deadline time.Time
+
+	// Options must be only for ChoiceTask otherwise must be nil
+	Options *[]string
+
+	// ImgID must be only for PhotoTask otherwise must be nil
+	ImgID *ImageID
+}
+
+func (*MsgTaskStart) isServerTx() {}
+
+type MsgTaskEnd struct {
+	baseTx
+
+	TaskIdx  int
+	Deadline time.Time
+
+	Task          Task
+	AnswerResults []AnswerResult
+
+	// TODO: scoreboard
+}
+
+func (*MsgTaskEnd) isServerTx() {}

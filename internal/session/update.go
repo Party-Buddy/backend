@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -121,12 +122,31 @@ func (u *sessionUpdater) playerAdded(
 	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
 		stateMessage = u.m.makeMsgWaiting(ctx, state.playersReady)
+
 	case *GameStartedState:
 		stateMessage = u.m.makeMsgGameStart(ctx, state.deadline)
+
 	case *TaskStartedState:
-		stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline)
+		task := s.getTaskByIdx(u.sid, state.taskIdx)
+		if task == nil {
+			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
+		}
+		switch task.(type) {
+		case PhotoTask:
+			answer, ok := state.answers[playerID]
+			if !ok {
+				u.log.Panicf("no prepared image player %s (nickname=%q, clientID=%s)",
+					playerID, player.Nickname, player.ClientID)
+			}
+			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, answer)
+
+		default:
+			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, nil)
+		}
+
 	case *PollStartedState:
 		stateMessage = u.m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
+
 	case *TaskEndedState:
 		stateMessage = u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results)
 	}
@@ -204,7 +224,7 @@ func (u *sessionUpdater) changeStateTo(
 
 	u.deadline.Reset(nextState.Deadline().Sub(time.Now()))
 
-	switch nextState.(type) {
+	switch state := nextState.(type) {
 	case *AwaitingPlayersState:
 		// TODO
 
@@ -212,13 +232,57 @@ func (u *sessionUpdater) changeStateTo(
 		// TODO
 
 	case *TaskStartedState:
-		// TODO
+		task := s.getTaskByIdx(u.sid, state.taskIdx)
+		if task == nil {
+			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
+		}
+		switch task.(type) {
+		case PhotoTask:
+			err := u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
+				var err error
+				s.ForEachPlayer(u.sid, func(p Player) {
+					var img ImageID
+					img, err = u.m.newImgMetadataForSession(ctx, tx, u.sid, p.ClientID)
+					if err != nil {
+						err = fmt.Errorf("could not register an image for player %s (nickname=%q, clientID=%s): %w",
+							p.ID, p.Nickname, p.ClientID, err)
+						return
+					}
+					state.answers[p.ID] = PhotoTaskAnswer(img)
+				})
+				if err != nil {
+					return err
+				}
+
+				tx.Commit(ctx)
+				return nil
+			})
+			if err != nil {
+				u.log.Printf("failed to create image metadata in session for all players because of err: %s", err)
+				u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
+				u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
+					u.m.closeSession(ctx, s, tx, u.sid)
+					tx.Commit(ctx)
+					return nil
+				})
+				return
+			}
+			s.ForEachPlayer(u.sid, func(p Player) {
+				u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, state.answers[p.ID]))
+			})
+		default:
+			for _, tx := range s.PlayerTxs(u.sid) {
+				u.m.sendToPlayer(tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, nil))
+			}
+		}
 
 	case *PollStartedState:
 		// TODO
 
 	case *TaskEndedState:
-		// TODO
+		for _, tx := range s.PlayerTxs(u.sid) {
+			u.m.sendToPlayer(tx, u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results))
+		}
 	}
 
 	s.setSessionState(u.sid, nextState)
@@ -227,23 +291,33 @@ func (u *sessionUpdater) changeStateTo(
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
 	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
-		for _, tx := range s.PlayerTxs(u.sid) {
-			u.m.sendToPlayer(tx, u.m.makeMsgError(ctx, ErrNoOwnerTimeout))
-		}
-
+		u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrNoOwnerTimeout)
 		u.changeStateTo(ctx, s, nil)
 
 	case *GameStartedState:
 		u.changeStateTo(ctx, s, u.makeFirstTaskStartedState(s, state))
 
 	case *TaskStartedState:
-		// TODO: go either to PollStartedState or TaskEndedState
+		task := s.getTaskByIdx(u.sid, state.taskIdx)
+		if task == nil {
+			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
+		}
+		if task.NeedsPoll() {
+			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
+		} else {
+			u.changeStateTo(ctx, s, u.makePlainTaskEndedState(s, state))
+		}
 
 	case *PollStartedState:
 		u.changeStateTo(ctx, s, u.makePollTaskEndedState(s, state))
 
 	case *TaskEndedState:
-		// TODO: go either to TaskStartedState or finish the game
+		if s.hasNextTask(u.sid, state.taskIdx) {
+			u.changeStateTo(ctx, s, u.makeNextTaskStartedState(s, state))
+		} else {
+			// TODO: finish game
+			u.changeStateTo(ctx, s, nil)
+		}
 	}
 }
 
@@ -327,13 +401,30 @@ func (u *sessionUpdater) makeGameStartedState(s *UnsafeStorage, state *AwaitingP
 }
 
 func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *GameStartedState) *TaskStartedState {
-	// TODO
-	return nil
+	task := s.getTaskByIdx(u.sid, 0)
+	if task == nil {
+		u.log.Panicf("unexpected task disappearance %v", 0)
+	}
+	return &TaskStartedState{
+		taskIdx:  0,
+		deadline: time.Now().Add(task.GetTaskDuration()),
+		answers:  make(map[PlayerID]TaskAnswer),
+		ready:    make(map[PlayerID]struct{}),
+	}
+
 }
 
 func (u *sessionUpdater) makeNextTaskStartedState(s *UnsafeStorage, state *TaskEndedState) *TaskStartedState {
-	// TODO
-	return nil
+	task := s.getTaskByIdx(u.sid, state.taskIdx+1)
+	if task == nil {
+		u.log.Panicf("unexpected task disappearance %v", state.taskIdx+1)
+	}
+	return &TaskStartedState{
+		taskIdx:  state.taskIdx + 1,
+		deadline: time.Now().Add(task.GetTaskDuration()),
+		answers:  make(map[PlayerID]TaskAnswer),
+		ready:    make(map[PlayerID]struct{}),
+	}
 }
 
 func (u *sessionUpdater) makePollStartedState(s *UnsafeStorage, state *TaskStartedState) *PollStartedState {

@@ -15,3 +15,7 @@ var (
 	ErrNicknameUsed   = errors.New("nickname is in use")
 	ErrLobbyFull      = errors.New("lobby is full")
 )
+
+var (
+	ErrInternal = errors.New("internal error")
+)
