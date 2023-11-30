@@ -78,7 +78,7 @@ outer:
 					sid:      msg.sid,
 					rx:       msg.rx,
 					log:      logger,
-					deadline: *time.NewTimer(NoOwnerTimeout),
+					deadline: time.NewTimer(NoOwnerTimeout),
 				}
 				group.Go(func() error {
 					return updater.run(ctx)
