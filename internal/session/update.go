@@ -43,7 +43,7 @@ type sessionUpdater struct {
 	sid      SessionID
 	rx       <-chan updateMsg
 	log      *log.Logger
-	deadline time.Timer
+	deadline *time.Timer
 }
 
 func (u *sessionUpdater) run(ctx context.Context) error {
