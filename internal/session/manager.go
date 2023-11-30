@@ -74,10 +74,11 @@ outer:
 					log.Default().Flags(),
 				)
 				updater := sessionUpdater{
-					m:   m,
-					sid: msg.sid,
-					rx:  msg.rx,
-					log: logger,
+					m:        m,
+					sid:      msg.sid,
+					rx:       msg.rx,
+					log:      logger,
+					deadline: *time.NewTimer(NoOwnerTimeout),
 				}
 				group.Go(func() error {
 					return updater.run(ctx)

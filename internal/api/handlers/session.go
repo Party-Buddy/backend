@@ -158,7 +158,7 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
-	var dto *api.Error
+	var dto api.Error
 	errors.As(err, &dto)
 	_ = encoder.Encode(dto)
 	log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)

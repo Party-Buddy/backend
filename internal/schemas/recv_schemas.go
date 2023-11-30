@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"party-buddy/internal/configuration"
 	"party-buddy/internal/schemas/api"
+	"party-buddy/internal/util"
 	"party-buddy/internal/validate"
 	"regexp"
 )
@@ -76,9 +77,10 @@ func (info *FullGameInfo) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
 
 	v := f.Is(valgo.StringP(info.Name, "name", "name").Not().Nil().
-		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
+		MatchingTo(baseReg).Passing(util.MaxLengthPChecker(configuration.MaxNameLength)))
 	v = v.Is(valgo.StringP(info.Description, "description", "description").Not().Nil().
-		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
+		MatchingTo(baseReg).Passing(util.MaxLengthPChecker(configuration.MaxDescriptionLength)))
+	v = v.Is(valgo.Int8P(info.ImgRequest, "img-request", "img-request").Not().Nil())
 	v = v.Is(validate.FieldValue(info.Tasks, "tasks", "tasks").Set()).
 		Is(valgo.Any(info.Tasks).Passing(func(v any) bool {
 			tasks := v.(*[]BaseTaskWithImgRequest)
@@ -123,9 +125,10 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 	f, _ := validate.FromContext(ctx)
 
 	v := f.Is(valgo.StringP(t.Name, "name", "name").Not().Nil().
-		MatchingTo(baseReg).MaxLength(configuration.MaxNameLength))
+		MatchingTo(baseReg).Passing(util.MaxLengthPChecker(configuration.MaxNameLength)))
 	v = v.Is(valgo.StringP(t.Description, "description", "description").Not().Nil().
-		MatchingTo(baseReg).MaxLength(configuration.MaxDescriptionLength))
+		MatchingTo(baseReg).Passing(util.MaxLengthPChecker(configuration.MaxDescriptionLength)))
+	v = v.Is(valgo.Int8P(t.ImgRequest, "img-request", "img-request").Not().Nil())
 	v = v.
 		Is(validate.FieldValue(t.Duration, "duration", "duration").Set()).
 		Is(valgo.Any(t.Duration, "duration", "duration").Passing(
@@ -136,7 +139,7 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 				}
 				return dur.Kind == Fixed
 			})).
-		Is(valgo.StringP(t.Type, "type", "type").Not().Not().
+		Is(valgo.StringP(t.Type, "type", "type").Not().Nil().
 			InSlice([]TaskType{Photo, Text, Choice, CheckedText}))
 
 	if t.Type == nil {
@@ -186,14 +189,14 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 
 		for i := 0; i < len(*t.Options); i++ {
 			v = v.Is(valgo.String((*t.Options)[i], "option", "option").
-				MatchingTo(baseReg).MaxLength(configuration.MaxOptionLength))
+				MatchingTo(baseReg).Passing(util.MaxLengthChecker(configuration.MaxOptionLength)))
 		}
 		return v
 
 	case CheckedText:
 		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(CheckedText)).
 			Is(valgo.StringP(t.Answer, "answer", "answer").Not().Nil().
-				MatchingTo(checkedTextReg).MaxLength(configuration.MaxCheckedTextAnswerLength))
+				MatchingTo(checkedTextReg).Passing(util.MaxLengthPChecker(configuration.MaxCheckedTextAnswerLength)))
 		return v
 
 	default:
