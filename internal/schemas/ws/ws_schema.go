@@ -27,7 +27,7 @@ var (
 
 type MessageKind string
 
-const (
+var (
 	MsgKindError      MessageKind = "error"
 	MsgKindJoin       MessageKind = "join"
 	MsgKindJoined     MessageKind = "joined"
