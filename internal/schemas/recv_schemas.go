@@ -37,7 +37,8 @@ func (r *BaseCreateSessionRequest) Validate(ctx context.Context) *valgo.Validati
 		Is(valgo.Int8P(r.PlayerCount, "player-count", "player-count").Not().Nil().
 			Between(configuration.PlayerMin, configuration.PlayerMax)).
 		Is(valgo.StringP(r.GameType, "game-type", "game-type").Not().Nil().
-			InSlice([]GameType{Public, Private}, "game-type"))
+			InSlice([]GameType{Public, Private}, "game-type")).
+		Is(valgo.BoolP(r.RequireReady, "require-ready", "require-ready").Not().Nil())
 }
 
 type PublicCreateSessionRequest struct {
