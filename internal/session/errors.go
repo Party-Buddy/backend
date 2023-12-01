@@ -17,5 +17,8 @@ var (
 )
 
 var (
-	ErrInternal = errors.New("internal error")
+	ErrInternal                   = errors.New("internal error")
+	ErrNoPlayer                   = errors.New("no player with such id")
+	ErrTaskNotStartedYet          = errors.New("task had not started")
+	ErrTypesTaskAndAnswerMismatch = errors.New("types of task and provided answer NOT match")
 )

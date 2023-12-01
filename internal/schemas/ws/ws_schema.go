@@ -7,12 +7,19 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"party-buddy/internal/configuration"
 	"party-buddy/internal/schemas"
+	"party-buddy/internal/util"
 	"party-buddy/internal/validate"
 	"regexp"
 	"time"
 
 	"github.com/cohesivestack/valgo"
+)
+
+var (
+	baseReg        = regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
+	checkedTextReg = regexp.MustCompile(fmt.Sprintf("[%v]", configuration.CheckedTextAnswerTemplate))
 )
 
 // See internal/api/api_schema.go for information on serialization/deserialization.
@@ -152,9 +159,8 @@ type MessageJoin struct {
 var nicknameRegex *regexp.Regexp = regexp.MustCompile("^[a-zA-Zа-яА-Я._ 0-9]{1,20}$")
 
 func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
-	f, _ := validate.FromContext(ctx)
-
-	return f.Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
+	return m.BaseMessage.Validate(ctx).
+		Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
 		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid")).
 		Is(valgo.StringP(m.Kind, "kind", "kind").EqualTo(MsgKindJoin))
 }
@@ -195,16 +201,72 @@ func (m *MessageLeave) Validate(ctx context.Context) *valgo.Validation {
 	return f.New()
 }
 
+type RecvAnswerType string
+
+var validRecvAnswerTypes = []RecvAnswerType{CheckedText, Text, Option}
+
+const (
+	CheckedText RecvAnswerType = "checked-text"
+	Text        RecvAnswerType = "text"
+	Option      RecvAnswerType = "option"
+)
+
+type RecvAnswer struct {
+	Type  *RecvAnswerType `json:"type"`
+	Value *any            `json:"value"`
+}
+
+func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	v := f.Is(valgo.StringP(a.Type, "type", "type").Not().Nil().InSlice(validRecvAnswerTypes)).
+		Is(valgo.Any(a.Value, "value", "value").Not().Nil())
+	if a.Value == nil || a.Type == nil {
+		return v
+	}
+	switch *a.Type {
+	case Option:
+		val, ok := (*a.Value).(uint8)
+		if ok {
+			v.Is(valgo.Uint8(val, "value", "value").LessThan(configuration.OptionsCount))
+		} else {
+			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
+		}
+	case Text:
+		val, ok := (*a.Value).(string)
+		if ok {
+			v.Is(valgo.String(val, "value", "value").MatchingTo(baseReg).
+				Passing(util.MaxLengthChecker(configuration.MaxTextAnswerLength)))
+		} else {
+			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
+		}
+	case CheckedText:
+		val, ok := (*a.Value).(string)
+		if ok {
+			v.Is(valgo.String(val, "value", "value").MatchingTo(checkedTextReg).
+				Passing(util.MaxLengthChecker(configuration.MaxCheckedTextAnswerLength)))
+		} else {
+			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
+		}
+	}
+	return v
+}
+
 type MessageTaskAnswer struct {
 	BaseMessage
 
-	// TODO
+	TaskIdx *int        `json:"task-idx" json:"taskIdx,omitempty"`
+	Ready   *bool       `json:"ready" json:"ready,omitempty"`
+	Answer  *RecvAnswer `json:"answer,omitempty"`
 }
 
 func (m *MessageTaskAnswer) Validate(ctx context.Context) *valgo.Validation {
-	f, _ := validate.FromContext(ctx)
-	// TODO
-	return f.New()
+	v := m.BaseMessage.Validate(ctx).
+		Is(valgo.IntP(m.TaskIdx, "task-idx", "task-idx").Not().Nil().LessThan(configuration.MaxTaskCount)).
+		Is(valgo.BoolP(m.Ready, "ready", "ready").Not().Nil())
+	if m.Answer != nil {
+		v.Merge(m.Answer.Validate(ctx))
+	}
+	return v
 }
 
 type MessagePollChoose struct {

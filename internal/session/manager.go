@@ -359,3 +359,34 @@ func (m *Manager) newImgMetadataForSession(ctx context.Context, tx pgx.Tx, sid S
 	}
 	return ImageID(dbImgID), nil
 }
+
+func (m *Manager) UpdatePlayerAnswer(
+	ctx context.Context,
+	sid SessionID,
+	playerID PlayerID,
+	answer TaskAnswer,
+	ready bool,
+	taskIdx int) error {
+	var err error
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		if !s.SessionExists(sid) {
+			err = ErrNoSession
+			return
+		}
+		if _, err = s.PlayerByID(sid, playerID); err != nil {
+			err = ErrNoPlayer
+			return
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	m.sendToUpdater(sid, &updateMsgUpdTaskAnswer{
+		playerID: playerID,
+		answer:   answer,
+		ready:    ready,
+		taskIdx:  taskIdx,
+	})
+	return nil
+}

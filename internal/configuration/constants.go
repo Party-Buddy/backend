@@ -17,4 +17,6 @@ const (
 
 	OptionsCount    = 4
 	MaxOptionLength = 20
+
+	MaxTextAnswerLength = 255
 )

@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
@@ -27,12 +28,45 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 		default:
 			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal, "internal error occurred")
 		}
-		log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
-			c.client.UUID().String(), err.Error(), errMsg.Code)
+		log.Printf("ConnInfo client: %s join session err: %v (code `%v`)",
+			c.client, err, errMsg.Code)
 		c.msgToClientChan <- &errMsg
 
 		c.dispose(ctx)
 		return
 	}
 	c.playerID = &player.ID
+}
+
+func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer, servDataChan session.TxChan) {
+	var err error
+	if m.Answer == nil {
+		err = c.manager.UpdatePlayerAnswer(ctx, c.sid, *c.playerID, nil, *m.Ready, *m.TaskIdx)
+	} else {
+		var answer session.TaskAnswer
+		switch *m.Answer.Type {
+		case ws.Text:
+			answer = session.TextTaskAnswer((*m.Answer.Value).(string))
+		case ws.CheckedText:
+			answer = session.CheckedTextAnswer((*m.Answer.Value).(string))
+		case ws.Option:
+			answer = session.TextTaskAnswer((*m.Answer.Value).(uint8))
+		default:
+			panic(fmt.Sprintf("unsupported answer type in ConnInfo with sid %s clientID %s playerID %s",
+				c.sid, c.client, *c.playerID))
+		}
+		err = c.manager.UpdatePlayerAnswer(ctx, c.sid, *c.playerID, answer, *m.Ready, *m.TaskIdx)
+	}
+	if err != nil {
+		var errMsg ws.MessageError
+		switch {
+		case errors.Is(err, session.ErrNoSession):
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrSessionExpired, "no such session")
+		case errors.Is(err, session.ErrNoPlayer):
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal, "")
+		}
+		log.Printf("ConnInfo client: %s join session err: %v (code `%v`)",
+			c.client, err, errMsg.Code)
+		c.dispose(ctx)
+	}
 }

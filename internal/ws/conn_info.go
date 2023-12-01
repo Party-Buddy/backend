@@ -154,7 +154,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 	for !c.stopRequested.Load() {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
-			log.Printf("ConnInfo client: %v err: %v", c.client.UUID().String(), err.Error())
+			log.Printf("ConnInfo client: %s err: %v", c.client, err)
 
 			if !c.stopRequested.Load() {
 				c.dispose(ctx)
@@ -170,8 +170,8 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 				BaseMessage: utils.GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
 			}
-			log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
-				c.client.UUID().String(), errDto.Message, errDto.Code)
+			log.Printf("ConnInfo client: %s parse message err: %v (code `%v`)",
+				c.client, errDto.Message, errDto.Code)
 			c.msgToClientChan <- &rspMessage
 
 			c.dispose(ctx)
@@ -184,7 +184,12 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:
+			log.Printf("ConnInfo client: %s handling message Join", c.client)
 			c.handleJoin(ctx, m, servDataChan)
+
+		case *ws.MessageTaskAnswer:
+			log.Printf("ConnInfo client: %s handling message TaskAnswer", c.client)
+			c.handleTaskAnswer(ctx, m, servDataChan)
 		}
 
 	}
@@ -206,12 +211,11 @@ func properWSClose(wsConn *websocket.Conn) {
 //
 // Disconnecting because of server initiative is handled in runServeToWriterConverter
 func (c *ConnInfo) dispose(ctx context.Context) {
-	log.Printf("ConnInfo client: %v disconnecting", c.client.UUID().String())
+	log.Printf("ConnInfo client: %s disconnecting", c.client)
 	c.stopRequested.Store(true)
 	if c.playerID != nil { // playerID indicates that client has already joined
 		// Here we are asking manager to disconnect us
-		log.Printf("ConnInfo client: %v player: %v request disconnection from manager",
-			c.client.UUID().String(), c.playerID.UUID().ID())
+		log.Printf("ConnInfo client: %s player: %s request disconnection from manager", c.client, c.playerID)
 		c.manager.RemovePlayer(ctx, c.sid, *c.playerID)
 	} else {
 		// Manager knows nothing about client, so we just stop threads
