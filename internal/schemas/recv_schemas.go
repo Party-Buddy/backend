@@ -143,7 +143,7 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 				return dur.Kind == Fixed
 			})).
 		Is(valgo.StringP(t.Type, "type", "type").Not().Nil().
-			InSlice([]TaskType{Photo, Text, Choice, CheckedText}))
+			InSlice(validTaskTypes))
 
 	if t.Type == nil {
 		return v
@@ -171,7 +171,9 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 					return false
 				}
 				return d.Kind == Fixed || d.Kind == Dynamic
-			}))
+			})).
+			Is(valgo.StringP(t.Answer, "answer", "answer").Not().Nil().MatchingTo(baseReg).
+				Passing(util.MaxLengthPChecker(configuration.MaxTextAnswerLength)))
 		return v
 
 	case Choice:

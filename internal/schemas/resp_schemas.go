@@ -40,6 +40,8 @@ type PollDuration struct {
 
 type TaskType string
 
+var validTaskTypes = []TaskType{Photo, Text, CheckedText, Choice}
+
 const (
 	Photo       TaskType = "photo"
 	Text        TaskType = "text"
