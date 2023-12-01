@@ -28,8 +28,8 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 		default:
 			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal, "internal error occurred")
 		}
-		log.Printf("ConnInfo client: %s join session err: %v (code `%v`)",
-			c.client, err, errMsg.Code)
+		log.Printf("ConnInfo client: %s join session %s err: %v (code `%v`)",
+			c.client, c.sid, err, errMsg.Code)
 		c.msgToClientChan <- &errMsg
 
 		c.dispose(ctx)
@@ -38,7 +38,13 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 	c.playerID = &player.ID
 }
 
-func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer, servDataChan session.TxChan) {
+func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer) {
+	if c.playerID == nil {
+		log.Printf("ConnInfo client: %s not joined the session %s", c.client, c.sid)
+		c.dispose(ctx)
+		return
+	}
+
 	var err error
 	if m.Answer == nil {
 		err = c.manager.UpdatePlayerAnswer(ctx, c.sid, *c.playerID, nil, *m.Ready, *m.TaskIdx)
@@ -65,8 +71,10 @@ func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer
 		case errors.Is(err, session.ErrNoPlayer):
 			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal, "")
 		}
-		log.Printf("ConnInfo client: %s join session err: %v (code `%v`)",
-			c.client, err, errMsg.Code)
+		log.Printf("ConnInfo client: %s in session %s task answer err: %v (code `%v`)",
+			c.client, c.sid, err, errMsg.Code)
+		c.msgToClientChan <- &errMsg
+
 		c.dispose(ctx)
 	}
 }

@@ -21,4 +21,5 @@ var (
 	ErrNoPlayer                   = errors.New("no player with such id")
 	ErrTaskNotStartedYet          = errors.New("task had not started")
 	ErrTypesTaskAndAnswerMismatch = errors.New("types of task and provided answer NOT match")
+	ErrProtoViolation             = errors.New("protocol violation")
 )

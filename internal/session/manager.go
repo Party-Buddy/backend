@@ -383,6 +383,7 @@ func (m *Manager) UpdatePlayerAnswer(
 	}
 
 	m.sendToUpdater(sid, &updateMsgUpdTaskAnswer{
+		ctx:      ctx,
 		playerID: playerID,
 		answer:   answer,
 		ready:    ready,

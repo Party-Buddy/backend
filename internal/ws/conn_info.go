@@ -170,8 +170,8 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 				BaseMessage: utils.GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
 			}
-			log.Printf("ConnInfo client: %s parse message err: %v (code `%v`)",
-				c.client, errDto.Message, errDto.Code)
+			log.Printf("ConnInfo client: %s session %s parse message err: %v (code `%v`)",
+				c.client, c.sid, errDto.Message, errDto.Code)
 			c.msgToClientChan <- &rspMessage
 
 			c.dispose(ctx)
@@ -184,12 +184,12 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:
-			log.Printf("ConnInfo client: %s handling message Join", c.client)
+			log.Printf("ConnInfo client: %s session %s handling message Join", c.client, c.sid)
 			c.handleJoin(ctx, m, servDataChan)
 
 		case *ws.MessageTaskAnswer:
-			log.Printf("ConnInfo client: %s handling message TaskAnswer", c.client)
-			c.handleTaskAnswer(ctx, m, servDataChan)
+			log.Printf("ConnInfo client: %s session %s handling message TaskAnswer", c.client, c.sid)
+			c.handleTaskAnswer(ctx, m)
 		}
 
 	}

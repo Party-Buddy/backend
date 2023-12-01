@@ -85,7 +85,7 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 				case *updateMsgChangeStateTo:
 					u.changeStateTo(ctx, s, msg.nextState)
 				case *updateMsgUpdTaskAnswer:
-					u.updateAnswer(ctx, s, msg.playerID, msg.answer, msg.ready, msg.taskIdx)
+					u.updateAnswer(msg.ctx, s, msg.playerID, msg.answer, msg.ready, msg.taskIdx)
 				}
 			})
 		}
@@ -103,13 +103,20 @@ func (u *sessionUpdater) updateAnswer(
 	if state == nil {
 		return
 	}
+
+	player, err := s.PlayerByID(u.sid, playerID)
+	if err != nil {
+		u.log.Panicf("unexpected disappearance of player %s when handling task answer for task %v",
+			playerID, taskIdx)
+	}
 	switch state := state.(type) {
+	case *AwaitingPlayersState:
+		u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrProtoViolation))
+
+	case *GameStartedState:
+		u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrProtoViolation))
+
 	case *TaskStartedState:
-		player, err := s.PlayerByID(u.sid, playerID)
-		if err != nil {
-			u.log.Panicf("unexpected disappearance of player %s when handling task answer for task %v during TaskStartedState for task %v",
-				playerID, taskIdx, state.taskIdx)
-		}
 		if state.taskIdx < taskIdx {
 			u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
 			return
@@ -140,6 +147,9 @@ func (u *sessionUpdater) updateAnswer(
 		} else {
 			delete(state.ready, playerID)
 		}
+
+	default:
+		// ignore TaskAnswer for other states
 	}
 }
 

@@ -262,7 +262,8 @@ type MessageTaskAnswer struct {
 func (m *MessageTaskAnswer) Validate(ctx context.Context) *valgo.Validation {
 	v := m.BaseMessage.Validate(ctx).
 		Is(valgo.IntP(m.TaskIdx, "task-idx", "task-idx").Not().Nil().LessThan(configuration.MaxTaskCount)).
-		Is(valgo.BoolP(m.Ready, "ready", "ready").Not().Nil())
+		Is(valgo.BoolP(m.Ready, "ready", "ready").Not().Nil()).
+		Is(valgo.StringP(m.Kind, "kind", "kind").Not().Nil().EqualTo(MsgKindTaskAnswer))
 	if m.Answer != nil {
 		v.Merge(m.Answer.Validate(ctx))
 	}
