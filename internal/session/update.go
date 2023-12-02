@@ -34,7 +34,17 @@ type updateMsgChangeStateTo struct {
 	nextState State
 }
 
-func (updateMsgChangeStateTo) isUpdateMsg() {}
+func (*updateMsgChangeStateTo) isUpdateMsg() {}
+
+type updateMsgUpdTaskAnswer struct {
+	ctx      context.Context
+	playerID PlayerID
+	answer   TaskAnswer
+	ready    bool
+	taskIdx  int
+}
+
+func (*updateMsgUpdTaskAnswer) isUpdateMsg() {}
 
 // # Run logic
 
@@ -74,9 +84,55 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 					u.removePlayer(msg.ctx, s, msg.playerID)
 				case *updateMsgChangeStateTo:
 					u.changeStateTo(ctx, s, msg.nextState)
+				case *updateMsgUpdTaskAnswer:
+					u.updateAnswer(msg.ctx, s, msg.playerID, msg.answer, msg.ready, msg.taskIdx)
 				}
 			})
 		}
+	}
+}
+
+func (u *sessionUpdater) updateAnswer(
+	ctx context.Context,
+	s *UnsafeStorage,
+	playerID PlayerID,
+	answer TaskAnswer,
+	ready bool,
+	taskIdx int,
+) {
+	state := s.sessionState(u.sid)
+	if state == nil {
+		return
+	}
+
+	player, err := s.PlayerByID(u.sid, playerID)
+	if err != nil {
+		u.log.Printf("unexpected disappearance of player %s when handling task answer for task %v",
+			playerID, taskIdx)
+		return
+	}
+	switch state := state.(type) {
+	case *TaskStartedState:
+		if state.taskIdx > taskIdx {
+			return
+		}
+		if state.taskIdx < taskIdx {
+			u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
+			u.m.closePlayerTx(s, u.sid, playerID)
+			return
+		}
+
+		if answer != nil {
+			state.answers[playerID] = answer
+		}
+		if ready {
+			state.ready[playerID] = struct{}{}
+		} else {
+			delete(state.ready, playerID)
+		}
+
+	default:
+		// ignore TaskAnswer for other states
 	}
 }
 

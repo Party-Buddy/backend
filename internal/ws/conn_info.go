@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
 	"party-buddy/internal/schemas/ws"
@@ -44,6 +45,8 @@ type ConnInfo struct {
 
 	// servDataChan here for closing
 	servDataChan session.TxChan
+
+	state sessionState
 }
 
 func NewConnInfo(
@@ -69,6 +72,7 @@ func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
 	c.msgToClientChan = msgChan
 	ctx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
+	c.state = initialState{}
 	go c.runReader(ctx, servChan)
 	go c.runServeToWriterConverter(ctx, msgChan, servChan)
 	go c.runWriter(ctx, msgChan)
@@ -100,14 +104,17 @@ func (c *ConnInfo) runServeToWriterConverter(
 					refID := msgIDFromContext(m.Context())
 					joinedMsg.RefID = &refID
 					msgChan <- &joinedMsg
+					c.state = awaitingPlayersState{}
 
 				case *session.MsgTaskStart:
 					taskStartMsg := converters.ToMessageTaskStart(*m)
 					msgChan <- &taskStartMsg
+					c.state = taskStartedState{}
 
 				case *session.MsgTaskEnd:
 					taskEndMsg := converters.ToMessageTaskEnd(*m)
 					msgChan <- &taskEndMsg
+					c.state = taskEndedState{}
 				}
 
 			}
@@ -154,7 +161,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 	for !c.stopRequested.Load() {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
-			log.Printf("ConnInfo client: %v err: %v", c.client.UUID().String(), err.Error())
+			log.Printf("ConnInfo client: %s err: %v", c.client, err)
 
 			if !c.stopRequested.Load() {
 				c.dispose(ctx)
@@ -170,21 +177,34 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 				BaseMessage: utils.GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
 			}
-			log.Printf("ConnInfo client: %v parse message err: %v (code `%v`)",
-				c.client.UUID().String(), errDto.Message, errDto.Code)
+			log.Printf("ConnInfo client: %s session %s parse message err: %v (code `%v`)",
+				c.client, c.sid, errDto.Message, errDto.Code)
 			c.msgToClientChan <- &rspMessage
 
 			c.dispose(ctx)
 			return
 		}
 
-		// TODO: get state
-		// TODO: check message type availability for the state
+		if !c.state.isAllowedMsg(msg) {
+			id := msg.GetMsgID()
+			errMsg := utils.GenMessageError(&id, ws.ErrProtoViolation,
+				fmt.Sprintf("forbidden message for current state"))
+			log.Printf("ConnInfo client: %s in session %s err: %v (code `%v`) (state `%s`)",
+				c.client, c.sid, err, errMsg.Code, c.state.name())
+			c.msgToClientChan <- &errMsg
+			c.dispose(ctx)
+			return
+		}
 		ctx = context.WithValue(ctx, msgIDKey, msg.GetMsgID())
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:
+			log.Printf("ConnInfo client: %s session %s handling message Join", c.client, c.sid)
 			c.handleJoin(ctx, m, servDataChan)
+
+		case *ws.MessageTaskAnswer:
+			log.Printf("ConnInfo client: %s session %s handling message TaskAnswer", c.client, c.sid)
+			c.handleTaskAnswer(ctx, m)
 		}
 
 	}
@@ -206,17 +226,15 @@ func properWSClose(wsConn *websocket.Conn) {
 //
 // Disconnecting because of server initiative is handled in runServeToWriterConverter
 func (c *ConnInfo) dispose(ctx context.Context) {
-	log.Printf("ConnInfo client: %v disconnecting", c.client.UUID().String())
+	log.Printf("ConnInfo client: %s disconnecting", c.client)
 	c.stopRequested.Store(true)
 	if c.playerID != nil { // playerID indicates that client has already joined
 		// Here we are asking manager to disconnect us
-		log.Printf("ConnInfo client: %v player: %v request disconnection from manager",
-			c.client.UUID().String(), c.playerID.UUID().ID())
+		log.Printf("ConnInfo client: %s player: %s request disconnection from manager", c.client, c.playerID)
 		c.manager.RemovePlayer(ctx, c.sid, *c.playerID)
 	} else {
 		// Manager knows nothing about client, so we just stop threads
 		c.cancel()
-		close(c.servDataChan)
 	}
 }
 

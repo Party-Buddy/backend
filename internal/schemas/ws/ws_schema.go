@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"party-buddy/internal/configuration"
 	"party-buddy/internal/schemas"
+	"party-buddy/internal/util"
 	"party-buddy/internal/validate"
 	"regexp"
 	"time"
@@ -52,8 +54,21 @@ func (id MessageID) String() string {
 // Its value is represented as a Unix timestamp (a 64-bit integer).
 type Time time.Time
 
-func (t Time) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Time(t).UnixMilli())
+func (t *Time) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte{}, errors.New("failed to serialize data because Time is nil")
+	}
+	return json.Marshal(time.Time(*t).UnixMilli())
+}
+
+func (t *Time) UnmarshalJSON(data []byte) error {
+	var val int64
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return err
+	}
+	*t = Time(time.UnixMilli(val))
+	return nil
 }
 
 type BaseMessage struct {
@@ -143,6 +158,8 @@ type MessageError struct {
 
 func (*MessageError) isRespMessage() {}
 
+func (*MessageError) isRecvMessage() {}
+
 type MessageJoin struct {
 	BaseMessage
 
@@ -152,9 +169,8 @@ type MessageJoin struct {
 var nicknameRegex *regexp.Regexp = regexp.MustCompile("^[a-zA-Zа-яА-Я._ 0-9]{1,20}$")
 
 func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
-	f, _ := validate.FromContext(ctx)
-
-	return f.Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
+	return m.BaseMessage.Validate(ctx).
+		Is(validate.FieldValue(m.Nickname, "nickname", "nickname").Set()).
 		Is(valgo.StringP(m.Nickname, "nickname", "nickname").MatchingTo(nicknameRegex, "{{title}} is invalid")).
 		Is(valgo.StringP(m.Kind, "kind", "kind").EqualTo(MsgKindJoin))
 }
@@ -195,16 +211,98 @@ func (m *MessageLeave) Validate(ctx context.Context) *valgo.Validation {
 	return f.New()
 }
 
+type RecvAnswerType string
+
+var validRecvAnswerTypes = []RecvAnswerType{CheckedText, Text, Option}
+
+const (
+	CheckedText RecvAnswerType = "checked-text"
+	Text        RecvAnswerType = "text"
+	Option      RecvAnswerType = "option"
+)
+
+type RecvAnswer struct {
+	Type   *RecvAnswerType
+	Option *uint8
+	Text   *string
+}
+
+func (a *RecvAnswer) UnmarshalJSON(data []byte) error {
+	var base struct {
+		Type *RecvAnswerType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &base); err != nil {
+		return err
+	}
+
+	a.Type = base.Type
+
+	if a.Type == nil {
+		return nil
+	}
+
+	switch *a.Type {
+	case Text, CheckedText:
+		var answer struct {
+			Value *string `json:"value"`
+		}
+		if err := json.Unmarshal(data, &answer); err != nil {
+			return err
+		}
+		a.Text = answer.Value
+
+	case Option:
+		var answer struct {
+			Value *uint8 `json:"value"`
+		}
+		if err := json.Unmarshal(data, &answer); err != nil {
+			return err
+		}
+		a.Option = answer.Value
+	}
+
+	return nil
+}
+
+func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
+	f, _ := validate.FromContext(ctx)
+	v := f.Is(valgo.StringP(a.Type, "type", "type").Not().Nil().InSlice(validRecvAnswerTypes))
+	if a.Type == nil {
+		return v
+	}
+	switch *a.Type {
+	case Option:
+		v.Is(valgo.Uint8P(a.Option, "value", "value").Not().Nil().
+			LessThan(configuration.OptionsCount))
+	case Text:
+		v.Is(valgo.StringP(a.Text, "value", "value").Not().Nil().
+			MatchingTo(configuration.BaseTextReg).
+			Passing(util.MaxLengthPChecker(configuration.MaxTextAnswerLength)))
+	case CheckedText:
+		v.Is(valgo.StringP(a.Text, "value", "value").Not().Nil().
+			MatchingTo(configuration.CheckedTextAnswerReg).
+			Passing(util.MaxLengthPChecker(configuration.MaxCheckedTextAnswerLength)))
+	}
+	return v
+}
+
 type MessageTaskAnswer struct {
 	BaseMessage
 
-	// TODO
+	TaskIdx *int        `json:"task-idx"`
+	Ready   *bool       `json:"ready"`
+	Answer  *RecvAnswer `json:"answer,omitempty"`
 }
 
 func (m *MessageTaskAnswer) Validate(ctx context.Context) *valgo.Validation {
-	f, _ := validate.FromContext(ctx)
-	// TODO
-	return f.New()
+	v := m.BaseMessage.Validate(ctx).
+		Is(valgo.IntP(m.TaskIdx, "task-idx", "task-idx").Not().Nil().LessThan(configuration.MaxTaskCount)).
+		Is(valgo.BoolP(m.Ready, "ready", "ready").Not().Nil()).
+		Is(valgo.StringP(m.Kind, "kind", "kind").Not().Nil().EqualTo(MsgKindTaskAnswer))
+	if m.Answer != nil {
+		v.Merge(m.Answer.Validate(ctx))
+	}
+	return v
 }
 
 type MessagePollChoose struct {
