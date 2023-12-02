@@ -14,7 +14,7 @@ func (initialState) isSessionState() {}
 
 func (initialState) isAllowedMsg(m ws.RecvMessage) bool {
 	switch m.(type) {
-	case *ws.MessageJoin:
+	case *ws.MessageJoin, *ws.MessageError:
 		return true
 	default:
 		return false
@@ -31,11 +31,7 @@ func (awaitingPlayersState) isSessionState() {}
 
 func (awaitingPlayersState) isAllowedMsg(m ws.RecvMessage) bool {
 	switch m.(type) {
-	case *ws.MessageReady:
-		return true
-	case *ws.MessageLeave:
-		return true
-	case *ws.MessageKick:
+	case *ws.MessageReady, *ws.MessageLeave, *ws.MessageKick, *ws.MessageError:
 		return true
 	default:
 		return false
@@ -52,11 +48,7 @@ func (gameStartedState) isSessionState() {}
 
 func (gameStartedState) isAllowedMsg(m ws.RecvMessage) bool {
 	switch m.(type) {
-	case *ws.MessageReady:
-		return true
-	case *ws.MessageLeave:
-		return true
-	case *ws.MessageKick:
+	case *ws.MessageReady, *ws.MessageLeave, *ws.MessageKick, *ws.MessageError:
 		return true
 	default:
 		return false
@@ -73,15 +65,7 @@ func (taskStartedState) isSessionState() {}
 
 func (taskStartedState) isAllowedMsg(m ws.RecvMessage) bool {
 	switch m.(type) {
-	case *ws.MessageReady:
-		return true
-	case *ws.MessageLeave:
-		return true
-	case *ws.MessageKick:
-		return true
-	case *ws.MessageTaskAnswer:
-		return true
-	case *ws.MessagePollChoose:
+	case *ws.MessageReady, *ws.MessageLeave, *ws.MessageKick, *ws.MessageTaskAnswer, *ws.MessagePollChoose, *ws.MessageError:
 		return true
 	default:
 		return false
@@ -98,15 +82,7 @@ func (pollStartedState) isSessionState() {}
 
 func (pollStartedState) isAllowedMsg(m ws.RecvMessage) bool {
 	switch m.(type) {
-	case *ws.MessageReady:
-		return true
-	case *ws.MessageLeave:
-		return true
-	case *ws.MessageKick:
-		return true
-	case *ws.MessageTaskAnswer:
-		return true
-	case *ws.MessagePollChoose:
+	case *ws.MessageReady, *ws.MessageLeave, *ws.MessageKick, *ws.MessageTaskAnswer, *ws.MessagePollChoose, *ws.MessageError:
 		return true
 	default:
 		return false
@@ -123,15 +99,7 @@ func (taskEndedState) isSessionState() {}
 
 func (taskEndedState) isAllowedMsg(m ws.RecvMessage) bool {
 	switch m.(type) {
-	case *ws.MessageReady:
-		return true
-	case *ws.MessageLeave:
-		return true
-	case *ws.MessageKick:
-		return true
-	case *ws.MessageTaskAnswer:
-		return true
-	case *ws.MessagePollChoose:
+	case *ws.MessageReady, *ws.MessageLeave, *ws.MessageKick, *ws.MessageTaskAnswer, *ws.MessagePollChoose, *ws.MessageError:
 		return true
 	default:
 		return false
