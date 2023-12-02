@@ -10,7 +10,7 @@ func Test_MessageTaskAnswer_WithChoiceAnswer_Deserialized(t *testing.T) {
 		{
 			"msg-id": 1,
 			"kind": "task-answer",
-			"time": 1701515325249,
+			"time": 1701517977438,
 			"ready": true,
 			"task-idx": 0,
 			"answer": {
@@ -31,7 +31,7 @@ func Test_MessageTaskAnswer_WithTextAnswer_Deserialized(t *testing.T) {
 		{
 			"msg-id": 1,
 			"kind": "task-answer",
-			"time": 1701515325249,
+			"time": 1701517977438,
 			"ready": true,
 			"task-idx": 0,
 			"answer": {
@@ -52,7 +52,7 @@ func Test_MessageTaskAnswer_WithCheckedTextAnswer_Deserialized(t *testing.T) {
 		{
 			"msg-id": 1,
 			"kind": "task-answer",
-			"time": 1701515325249,
+			"time": 1701517977438,
 			"ready": true,
 			"task-idx": 0,
 			"answer": {

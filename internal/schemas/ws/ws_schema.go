@@ -3,7 +3,6 @@ package ws
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,8 +62,12 @@ func (t *Time) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Time) UnmarshalJSON(data []byte) error {
-	val := time.Duration(binary.BigEndian.Uint64(data))
-	*t = Time(time.Time{}.Add(val * time.Millisecond))
+	var val int64
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return err
+	}
+	*t = Time(time.UnixMilli(val))
 	return nil
 }
 
