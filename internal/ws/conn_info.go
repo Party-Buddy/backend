@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
 	"party-buddy/internal/schemas/ws"
@@ -44,6 +45,8 @@ type ConnInfo struct {
 
 	// servDataChan here for closing
 	servDataChan session.TxChan
+
+	state sessionState
 }
 
 func NewConnInfo(
@@ -69,6 +72,7 @@ func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
 	c.msgToClientChan = msgChan
 	ctx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
+	c.state = initialState{}
 	go c.runReader(ctx, servChan)
 	go c.runServeToWriterConverter(ctx, msgChan, servChan)
 	go c.runWriter(ctx, msgChan)
@@ -100,14 +104,17 @@ func (c *ConnInfo) runServeToWriterConverter(
 					refID := msgIDFromContext(m.Context())
 					joinedMsg.RefID = &refID
 					msgChan <- &joinedMsg
+					c.state = awaitingPlayersState{}
 
 				case *session.MsgTaskStart:
 					taskStartMsg := converters.ToMessageTaskStart(*m)
 					msgChan <- &taskStartMsg
+					c.state = taskStartedState{}
 
 				case *session.MsgTaskEnd:
 					taskEndMsg := converters.ToMessageTaskEnd(*m)
 					msgChan <- &taskEndMsg
+					c.state = taskEndedState{}
 				}
 
 			}
@@ -178,8 +185,16 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 			return
 		}
 
-		// TODO: get state
-		// TODO: check message type availability for the state
+		if !c.state.isAllowedMsg(msg) {
+			id := msg.GetMsgID()
+			errMsg := utils.GenMessageError(&id, ws.ErrProtoViolation,
+				fmt.Sprintf("forbidden message for current state"))
+			log.Printf("ConnInfo client: %s in session %s err: %v (code `%v`) (state `%s`)",
+				c.client, c.sid, err, errMsg.Code, c.state.name())
+			c.msgToClientChan <- &errMsg
+			c.dispose(ctx)
+			return
+		}
 		ctx = context.WithValue(ctx, msgIDKey, msg.GetMsgID())
 
 		switch m := msg.(type) {
