@@ -98,7 +98,8 @@ func (u *sessionUpdater) updateAnswer(
 	playerID PlayerID,
 	answer TaskAnswer,
 	ready bool,
-	taskIdx int) {
+	taskIdx int,
+) {
 	state := s.sessionState(u.sid)
 	if state == nil {
 		return
@@ -106,40 +107,22 @@ func (u *sessionUpdater) updateAnswer(
 
 	player, err := s.PlayerByID(u.sid, playerID)
 	if err != nil {
-		u.log.Panicf("unexpected disappearance of player %s when handling task answer for task %v",
+		u.log.Printf("unexpected disappearance of player %s when handling task answer for task %v",
 			playerID, taskIdx)
+		return
 	}
 	switch state := state.(type) {
-	case *AwaitingPlayersState:
-		u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrProtoViolation))
-
-	case *GameStartedState:
-		u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrProtoViolation))
-
 	case *TaskStartedState:
-		if state.taskIdx < taskIdx {
-			u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
-			return
-		} else if state.taskIdx > taskIdx {
+		if state.taskIdx > taskIdx {
 			return
 		}
+		if state.taskIdx < taskIdx {
+			u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
+			u.m.closePlayerTx(s, u.sid, playerID)
+			return
+		}
+
 		if answer != nil {
-			// during validation, we checked that provided value of answer matched provided answer type
-			// now we are checking that task type matches provided answer type
-			task := s.getTaskByIdx(u.sid, taskIdx)
-			ok := false
-			switch task.(type) {
-			case ChoiceTask:
-				_, ok = answer.(ChoiceTaskAnswer)
-			case CheckedTextTask:
-				_, ok = answer.(CheckedTextAnswer)
-			case TextTask:
-				_, ok = answer.(TextTaskAnswer)
-			}
-			if !ok {
-				u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTypesTaskAndAnswerMismatch))
-				return
-			}
 			state.answers[playerID] = answer
 		}
 		if ready {

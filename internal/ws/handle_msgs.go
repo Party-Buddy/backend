@@ -69,7 +69,13 @@ func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer
 		case errors.Is(err, session.ErrNoSession):
 			errMsg = utils.GenMessageError(m.MsgID, ws.ErrSessionExpired, "no such session")
 		case errors.Is(err, session.ErrNoPlayer):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal, "")
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal,
+				fmt.Sprintf("client %s is not player with id %v in session", c.client, c.playerID.UUID().ID()))
+		case errors.Is(err, session.ErrNoTask):
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrMalformedMsg,
+				fmt.Sprintf("no task with idx %v", *m.TaskIdx))
+		case errors.Is(err, session.ErrTypesTaskAndAnswerMismatch):
+			errMsg = utils.GenMessageError(m.MsgID, ws.ErrMalformedMsg, "provided answer type do not match task type")
 		}
 		log.Printf("ConnInfo client: %s in session %s task answer err: %v (code `%v`)",
 			c.client, c.sid, err, errMsg.Code)

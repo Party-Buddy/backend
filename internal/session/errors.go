@@ -22,4 +22,5 @@ var (
 	ErrTaskNotStartedYet          = errors.New("task had not started")
 	ErrTypesTaskAndAnswerMismatch = errors.New("types of task and provided answer NOT match")
 	ErrProtoViolation             = errors.New("protocol violation")
+	ErrNoTask                     = errors.New("no task with such index")
 )

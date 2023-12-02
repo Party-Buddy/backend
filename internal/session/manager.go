@@ -366,16 +366,40 @@ func (m *Manager) UpdatePlayerAnswer(
 	playerID PlayerID,
 	answer TaskAnswer,
 	ready bool,
-	taskIdx int) error {
+	taskIdx int,
+) error {
 	var err error
 	m.storage.Atomically(func(s *UnsafeStorage) {
 		if !s.SessionExists(sid) {
 			err = ErrNoSession
 			return
 		}
-		if _, err = s.PlayerByID(sid, playerID); err != nil {
+		_, err = s.PlayerByID(sid, playerID)
+		if err != nil {
 			err = ErrNoPlayer
 			return
+		}
+		if answer != nil {
+			// during validation, we checked that provided value of answer matched provided answer type
+			// now we are checking that task type matches provided answer type
+			task := s.getTaskByIdx(sid, taskIdx)
+			if task == nil {
+				err = ErrNoTask
+				return
+			}
+			ok := false
+			switch task.(type) {
+			case ChoiceTask:
+				_, ok = answer.(ChoiceTaskAnswer)
+			case CheckedTextTask:
+				_, ok = answer.(CheckedTextAnswer)
+			case TextTask:
+				_, ok = answer.(TextTaskAnswer)
+			}
+			if !ok {
+				err = ErrTypesTaskAndAnswerMismatch
+				return
+			}
 		}
 	})
 	if err != nil {
