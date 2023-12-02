@@ -3,6 +3,7 @@ package ws
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,8 +55,17 @@ func (id MessageID) String() string {
 // Its value is represented as a Unix timestamp (a 64-bit integer).
 type Time time.Time
 
-func (t Time) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Time(t).UnixMilli())
+func (t *Time) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte{}, errors.New("failed to serialize data because Time is nil")
+	}
+	return json.Marshal(time.Time(*t).UnixMilli())
+}
+
+func (t *Time) UnmarshalJSON(data []byte) error {
+	val := time.Duration(binary.BigEndian.Uint64(data))
+	*t = Time(time.Time{}.Add(val * time.Millisecond))
+	return nil
 }
 
 type BaseMessage struct {
