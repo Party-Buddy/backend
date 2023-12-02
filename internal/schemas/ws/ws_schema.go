@@ -207,42 +207,66 @@ const (
 )
 
 type RecvAnswer struct {
-	Type  *RecvAnswerType `json:"type"`
-	Value *any            `json:"value"`
+	Type   *RecvAnswerType
+	Option *uint8
+	Text   *string
+}
+
+func (a *RecvAnswer) UnmarshalJSON(data []byte) error {
+	var base struct {
+		Type *RecvAnswerType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &base); err != nil {
+		return err
+	}
+
+	a.Type = base.Type
+
+	if a.Type == nil {
+		return nil
+	}
+
+	switch *a.Type {
+	case Text, CheckedText:
+		var answer struct {
+			Value *string `json:"value"`
+		}
+		if err := json.Unmarshal(data, &answer); err != nil {
+			return err
+		}
+		a.Text = answer.Value
+
+	case Option:
+		var answer struct {
+			Value *uint8 `json:"value"`
+		}
+		if err := json.Unmarshal(data, &answer); err != nil {
+			return err
+		}
+		a.Option = answer.Value
+	}
+
+	return nil
 }
 
 func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
 	f, _ := validate.FromContext(ctx)
-	v := f.Is(valgo.StringP(a.Type, "type", "type").Not().Nil().InSlice(validRecvAnswerTypes)).
-		Is(valgo.Any(a.Value, "value", "value").Not().Nil())
-	if a.Value == nil || a.Type == nil {
+	v := f.Is(valgo.StringP(a.Type, "type", "type").Not().Nil().InSlice(validRecvAnswerTypes))
+	if a.Type == nil {
 		return v
 	}
 	switch *a.Type {
 	case Option:
-		val, ok := (*a.Value).(int)
-		if ok {
-			uintVal := uint8(val)
-			v.Is(valgo.Uint8(uintVal, "value", "value").LessThan(configuration.OptionsCount))
-		} else {
-			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
-		}
+		v.Is(valgo.Uint8P(a.Option, "value", "value").Not().Nil().
+			LessThan(configuration.OptionsCount))
 	case Text:
-		val, ok := (*a.Value).(string)
-		if ok {
-			v.Is(valgo.String(val, "value", "value").MatchingTo(configuration.BaseTextReg).
-				Passing(util.MaxLengthChecker(configuration.MaxTextAnswerLength)))
-		} else {
-			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"text\""))
-		}
+		v.Is(valgo.StringP(a.Text, "value", "value").Not().Nil().
+			MatchingTo(configuration.BaseTextReg).
+			Passing(util.MaxLengthPChecker(configuration.MaxTextAnswerLength)))
 	case CheckedText:
-		val, ok := (*a.Value).(string)
-		if ok {
-			v.Is(valgo.String(val, "value", "value").MatchingTo(configuration.CheckedTextAnswerReg).
-				Passing(util.MaxLengthChecker(configuration.MaxCheckedTextAnswerLength)))
-		} else {
-			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"checked-text\""))
-		}
+		v.Is(valgo.StringP(a.Text, "value", "value").Not().Nil().
+			MatchingTo(configuration.CheckedTextAnswerReg).
+			Passing(util.MaxLengthPChecker(configuration.MaxCheckedTextAnswerLength)))
 	}
 	return v
 }
