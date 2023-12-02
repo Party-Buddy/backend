@@ -233,7 +233,7 @@ func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
 			v.Is(valgo.String(val, "value", "value").MatchingTo(configuration.BaseTextReg).
 				Passing(util.MaxLengthChecker(configuration.MaxTextAnswerLength)))
 		} else {
-			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
+			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"text\""))
 		}
 	case CheckedText:
 		val, ok := (*a.Value).(string)
@@ -241,7 +241,7 @@ func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
 			v.Is(valgo.String(val, "value", "value").MatchingTo(configuration.CheckedTextAnswerReg).
 				Passing(util.MaxLengthChecker(configuration.MaxCheckedTextAnswerLength)))
 		} else {
-			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
+			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"checked-text\""))
 		}
 	}
 	return v

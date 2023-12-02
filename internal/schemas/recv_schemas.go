@@ -164,14 +164,12 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 					return false
 				}
 				return d.Kind == Fixed || d.Kind == Dynamic
-			})).
-			Is(valgo.StringP(t.Answer, "answer", "answer").Not().Nil().MatchingTo(configuration.BaseTextReg).
-				Passing(util.MaxLengthPChecker(configuration.MaxTextAnswerLength)))
+			}))
 		return v
 
 	case Choice:
 		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(Choice)).
-			Is(valgo.Uint8P(t.AnswerIndex, "answer", "answer").Not().Nil().
+			Is(valgo.Uint8P(t.AnswerIndex, "answer-idx", "answer-idx").Not().Nil().
 				LessThan(configuration.OptionsCount)).
 			Is(validate.FieldValue(t.Options, "options", "options").Set()).
 			Is(valgo.Any(t.Options, "options", "options").Passing(func(v any) bool {
@@ -194,7 +192,8 @@ func (t *BaseTaskWithImgRequest) Validate(ctx context.Context) *valgo.Validation
 	case CheckedText:
 		v = v.Is(valgo.StringP(t.Type, "type", "type").EqualTo(CheckedText)).
 			Is(valgo.StringP(t.Answer, "answer", "answer").Not().Nil().
-				MatchingTo(configuration.CheckedTextAnswerReg).Passing(util.MaxLengthPChecker(configuration.MaxCheckedTextAnswerLength)))
+				MatchingTo(configuration.CheckedTextAnswerReg).
+				Passing(util.MaxLengthPChecker(configuration.MaxCheckedTextAnswerLength)))
 		return v
 
 	default:
