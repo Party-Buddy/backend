@@ -56,7 +56,7 @@ func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer
 		case ws.CheckedText:
 			answer = session.CheckedTextAnswer((*m.Answer.Value).(string))
 		case ws.Option:
-			answer = session.TextTaskAnswer((*m.Answer.Value).(uint8))
+			answer = session.TextTaskAnswer(uint8((*m.Answer.Value).(int)))
 		default:
 			panic(fmt.Sprintf("unsupported answer type in ConnInfo with sid %s clientID %s playerID %s",
 				c.sid, c.client, *c.playerID))

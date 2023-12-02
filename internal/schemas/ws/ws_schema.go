@@ -17,11 +17,6 @@ import (
 	"github.com/cohesivestack/valgo"
 )
 
-var (
-	baseReg        = regexp.MustCompile(fmt.Sprintf("[%v]", configuration.BaseTextFieldTemplate))
-	checkedTextReg = regexp.MustCompile(fmt.Sprintf("[%v]", configuration.CheckedTextAnswerTemplate))
-)
-
 // See internal/api/api_schema.go for information on serialization/deserialization.
 // Use [ParseMessage] for message deserialization as well as [ParseErrorToMessageError] for error handling.
 
@@ -225,16 +220,17 @@ func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
 	}
 	switch *a.Type {
 	case Option:
-		val, ok := (*a.Value).(uint8)
+		val, ok := (*a.Value).(int)
 		if ok {
-			v.Is(valgo.Uint8(val, "value", "value").LessThan(configuration.OptionsCount))
+			uintVal := uint8(val)
+			v.Is(valgo.Uint8(uintVal, "value", "value").LessThan(configuration.OptionsCount))
 		} else {
 			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
 		}
 	case Text:
 		val, ok := (*a.Value).(string)
 		if ok {
-			v.Is(valgo.String(val, "value", "value").MatchingTo(baseReg).
+			v.Is(valgo.String(val, "value", "value").MatchingTo(configuration.BaseTextReg).
 				Passing(util.MaxLengthChecker(configuration.MaxTextAnswerLength)))
 		} else {
 			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
@@ -242,7 +238,7 @@ func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
 	case CheckedText:
 		val, ok := (*a.Value).(string)
 		if ok {
-			v.Is(valgo.String(val, "value", "value").MatchingTo(checkedTextReg).
+			v.Is(valgo.String(val, "value", "value").MatchingTo(configuration.CheckedTextAnswerReg).
 				Passing(util.MaxLengthChecker(configuration.MaxCheckedTextAnswerLength)))
 		} else {
 			v.AddErrorMessage("value", fmt.Sprintf("unsupported type for value with answer type \"option\""))
@@ -254,8 +250,8 @@ func (a *RecvAnswer) Validate(ctx context.Context) *valgo.Validation {
 type MessageTaskAnswer struct {
 	BaseMessage
 
-	TaskIdx *int        `json:"task-idx" json:"taskIdx,omitempty"`
-	Ready   *bool       `json:"ready" json:"ready,omitempty"`
+	TaskIdx *int        `json:"task-idx"`
+	Ready   *bool       `json:"ready"`
 	Answer  *RecvAnswer `json:"answer,omitempty"`
 }
 

@@ -1,10 +1,12 @@
 package configuration
 
+import "regexp"
+
 const (
 	PlayerMin int8 = 2
 	PlayerMax int8 = 20
 
-	BaseTextFieldTemplate string = "a-zA-Zа-яА-Я0-9,./?<>()\\-_+=|;:!@#$%^&*{}\\[\\]\"'\\\\№`~ "
+	BaseTextFieldTemplate string = "[a-zA-Zа-яА-Я0-9,./?<>()\\-_+=|;:!@#$%^&*{}\\[\\]\"'\\\\№`~ ]"
 
 	MaxNameLength        = 20
 	MaxDescriptionLength = 255
@@ -13,10 +15,15 @@ const (
 	MaxTaskCount = 100
 
 	MaxCheckedTextAnswerLength        = 20
-	CheckedTextAnswerTemplate  string = "A-ZА-Я0-9,./?<>()\\-_+=|;:!@#$%^&*{}\\[\\]\"'\\\\№`~ "
+	CheckedTextAnswerTemplate  string = "[A-ZА-Я0-9,./?<>()\\-_+=|;:!@#$%^&*{}\\[\\]\"'\\\\№`~ ]"
 
 	OptionsCount    = 4
 	MaxOptionLength = 20
 
 	MaxTextAnswerLength = 255
+)
+
+var (
+	BaseTextReg          = regexp.MustCompile(BaseTextFieldTemplate)
+	CheckedTextAnswerReg = regexp.MustCompile(CheckedTextAnswerTemplate)
 )
