@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 )
 
 type (
@@ -119,7 +121,7 @@ type session struct {
 	clients       map[ClientID]PlayerID
 	bannedClients map[ClientID]struct{}
 	state         State
-	// TODO: scoreboard
+	scoreboard    Scoreboard
 }
 
 type Game struct {
@@ -177,4 +179,33 @@ type AnswerResult struct {
 	// Votes is the number of players who have voted for this answer.
 	// (If there was no poll, this count is zero.)
 	Votes int
+}
+
+type Scoreboard map[PlayerID]Score
+
+// Scores returns a list of players and their scores.
+//
+// The list is sorted by the scores in the descending order.
+func (s Scoreboard) Scores() []PlayerScore {
+	var result []PlayerScore
+
+	for playerID, score := range map[PlayerID]Score(s) {
+		result = append(result, PlayerScore{
+			PlayerID: playerID,
+			Score:    score,
+		})
+	}
+
+	slices.SortFunc(result, func(a, b PlayerScore) int {
+		return cmp.Compare(a.Score, b.Score)
+	})
+
+	return result
+}
+
+type Score uint32
+
+type PlayerScore struct {
+	PlayerID
+	Score
 }

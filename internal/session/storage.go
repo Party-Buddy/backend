@@ -116,6 +116,7 @@ func (s *UnsafeStorage) newSession(
 			requireReady: requireReady,
 			owner:        owner,
 		},
+		scoreboard: make(map[PlayerID]Score),
 	}
 	s.inviteCodes[code] = sid
 
@@ -329,6 +330,7 @@ func (s *UnsafeStorage) addPlayer(
 	}
 	session.players[playerID] = player
 	session.clients[clientID] = playerID
+	session.scoreboard[playerID] = Score(0)
 
 	return
 }
@@ -347,6 +349,7 @@ func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID
 
 	delete(session.players, playerID)
 	delete(session.clients, clientID)
+	delete(session.scoreboard, playerID)
 
 	return playerID, true
 }
