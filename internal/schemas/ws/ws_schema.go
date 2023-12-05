@@ -498,6 +498,19 @@ type MessageJoined struct {
 
 func (*MessageJoined) isRespMessage() {}
 
+type Player struct {
+	PlayerID uuid.UUID `json:"player-id"`
+	Nickname string    `json:"nickname"`
+}
+
+type MessageGameStatus struct {
+	BaseMessage
+
+	Players []Player `json:"players"`
+}
+
+func (*MessageGameStatus) isRespMessage() {}
+
 type MessageTaskStart struct {
 	BaseMessage
 

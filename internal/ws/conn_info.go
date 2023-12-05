@@ -107,10 +107,10 @@ func (c *ConnInfo) runServeToWriterConverter(
 				joinedMsg := converters.ToMessageJoined(*m)
 				joinedMsg.RefID = msgIDFromContext(m.Context())
 				msgChan <- &joinedMsg
-				c.state = awaitingPlayersState{}
 
 			case *session.MsgGameStatus:
-				// TODO: send GameStatus
+				gameStatusMsg := converters.ToMessageGameStatus(*m)
+				msgChan <- &gameStatusMsg
 
 			case *session.MsgTaskStart:
 				taskStartMsg := converters.ToMessageTaskStart(*m)
@@ -124,9 +124,11 @@ func (c *ConnInfo) runServeToWriterConverter(
 
 			case *session.MsgGameStart:
 				// TODO: send GameStart
+				c.state = gameStartedState{}
 
 			case *session.MsgWaiting:
 				// TODO: send Waiting
+				c.state = awaitingPlayersState{}
 			}
 		}
 	}
