@@ -42,6 +42,6 @@ func WriteErrorResponse(w http.ResponseWriter, code int, kind api.ErrorKind, mes
 	encoder := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	dto := api.Errorf(kind, message)
+	dto := api.Error{Kind: kind, Message: message}
 	_ = encoder.Encode(dto)
 }
