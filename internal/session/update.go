@@ -167,7 +167,15 @@ func (u *sessionUpdater) playerAdded(
 		stateMessage = u.m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
 
 	case *TaskEndedState:
-		stateMessage = u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results)
+		stateMessage = u.m.makeMsgTaskEnd(
+			ctx,
+			state.taskIdx,
+			state.deadline,
+			s.taskByIdx(u.sid, state.taskIdx),
+			s.SessionScoreboard(u.sid),
+			state.winners,
+			state.results,
+		)
 	}
 	u.m.sendToPlayer(player.tx, stateMessage)
 }
@@ -239,8 +247,6 @@ func (u *sessionUpdater) changeStateTo(
 		return
 	}
 
-	// TODO: handle transition from other states
-
 	u.deadline.Reset(nextState.Deadline().Sub(time.Now()))
 
 	switch state := nextState.(type) {
@@ -289,6 +295,7 @@ func (u *sessionUpdater) changeStateTo(
 			s.ForEachPlayer(u.sid, func(p Player) {
 				u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, state.answers[p.ID]))
 			})
+
 		default:
 			for _, tx := range s.PlayerTxs(u.sid) {
 				u.m.sendToPlayer(tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, nil))
@@ -299,9 +306,16 @@ func (u *sessionUpdater) changeStateTo(
 		// TODO
 
 	case *TaskEndedState:
-		for _, tx := range s.PlayerTxs(u.sid) {
-			u.m.sendToPlayer(tx, u.m.makeMsgTaskEnd(ctx, state.taskIdx, state.deadline, state.results))
-		}
+		s.incrementScores(u.sid, state.winners)
+		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgTaskEnd(
+			ctx,
+			state.taskIdx,
+			state.deadline,
+			s.taskByIdx(u.sid, state.taskIdx),
+			s.SessionScoreboard(u.sid),
+			state.winners,
+			state.results,
+		))
 	}
 
 	s.setSessionState(u.sid, nextState)

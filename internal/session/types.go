@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -197,15 +198,19 @@ func (s Scoreboard) Scores() []PlayerScore {
 	}
 
 	slices.SortFunc(result, func(a, b PlayerScore) int {
-		return cmp.Compare(a.Score, b.Score)
+		return -cmp.Compare(a.Score, b.Score)
 	})
 
 	return result
 }
 
+func (s Scoreboard) Clone() Scoreboard {
+	return maps.Clone(s)
+}
+
 type Score uint32
 
 type PlayerScore struct {
-	PlayerID
-	Score
+	PlayerID PlayerID
+	Score    Score
 }

@@ -13,37 +13,44 @@ func ToMessageTaskEnd(m session.MsgTaskEnd) ws.MessageTaskEnd {
 		TaskIdx:     uint8(m.TaskIdx),
 		Deadline:    m.Deadline,
 	}
-	answers := make([]ws.Answer, 0)
-	for _, a := range m.AnswerResults {
+
+	for _, score := range m.Scoreboard.Scores() {
+		msg.Scoreboard = append(msg.Scoreboard, ws.TaskPlayerScore{
+			PlayerID:    score.PlayerID.UUID(),
+			TaskPoints:  uint32(m.Winners[score.PlayerID]),
+			TotalPoints: uint32(score.Score),
+		})
+	}
+
+	for _, a := range m.Results {
 		switch t := m.Task.(type) {
 		case *session.ChoiceTask:
-			answers = append(answers, &ws.TaskOptionAnswer{
+			msg.Answers = append(msg.Answers, &ws.TaskOptionAnswer{
 				Value:       t.Options[a.Value.(session.ChoiceTaskAnswer)],
 				PlayerCount: uint16(a.Submissions),
 				Correct:     t.AnswerIdx == int(a.Value.(session.ChoiceTaskAnswer)),
 			})
 
 		case *session.CheckedTextTask:
-			answers = append(answers, &ws.CheckedWordAnswer{
+			msg.Answers = append(msg.Answers, &ws.CheckedWordAnswer{
 				Value:       string(a.Value.(session.CheckedTextAnswer)),
 				PlayerCount: uint16(a.Submissions),
 				Correct:     t.Answer == string(a.Value.(session.CheckedTextAnswer)),
 			})
 
 		case *session.PhotoTask:
-			answers = append(answers, &ws.PhotoAnswer{
+			msg.Answers = append(msg.Answers, &ws.PhotoAnswer{
 				Value: configuration.GenImgURI(a.Value.(session.PhotoTaskAnswer).UUID),
 				Votes: uint16(a.Votes),
 			})
 
 		case *session.TextTask:
-			answers = append(answers, &ws.WordAnswer{
+			msg.Answers = append(msg.Answers, &ws.WordAnswer{
 				Value: string(a.Value.(session.TextTaskAnswer)),
 				Votes: uint16(a.Votes),
 			})
 		}
 	}
-	msg.Answers = answers
-	// TODO: convert scoreboard
+
 	return msg
 }

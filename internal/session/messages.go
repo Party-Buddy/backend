@@ -67,10 +67,19 @@ func (m *Manager) makeMsgTaskEnd(
 	ctx context.Context,
 	taskIdx int,
 	deadline time.Time,
+	task Task,
+	scoreboard Scoreboard,
+	winners map[PlayerID]Score,
 	results []AnswerResult,
 ) ServerTx {
-	// TODO
-	return nil
+	return &MsgTaskEnd{
+		baseTx:     baseTx{Ctx: ctx},
+		TaskIdx:    taskIdx,
+		Deadline:   deadline,
+		Task:       task,
+		Results:    results,
+		Scoreboard: scoreboard,
+	}
 }
 
 func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) ServerTx {
