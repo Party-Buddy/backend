@@ -236,6 +236,28 @@ func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID Play
 	})
 }
 
+// SetPlayerReady sets the readiness of a player for the game.
+func (m *Manager) SetPlayerReady(ctx context.Context, sid SessionID, playerID PlayerID, ready bool) (err error) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		if !s.SessionExists(sid) {
+			err = ErrNoSession
+			return
+		}
+	})
+
+	if err != nil {
+		return
+	}
+
+	m.sendToUpdater(sid, &updateMsgSetPlayerReady{
+		ctx:      ctx,
+		playerID: playerID,
+		ready:    ready,
+	})
+
+	return
+}
+
 func (m *Manager) UpdatePlayerAnswer(
 	ctx context.Context,
 	sid SessionID,

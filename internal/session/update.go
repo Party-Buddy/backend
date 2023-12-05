@@ -36,6 +36,14 @@ type updateMsgChangeStateTo struct {
 
 func (*updateMsgChangeStateTo) isUpdateMsg() {}
 
+type updateMsgSetPlayerReady struct {
+	ctx      context.Context
+	playerID PlayerID
+	ready    bool
+}
+
+func (*updateMsgSetPlayerReady) isUpdateMsg() {}
+
 type updateMsgUpdTaskAnswer struct {
 	ctx      context.Context
 	playerID PlayerID
@@ -84,54 +92,13 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 					u.removePlayer(msg.ctx, s, msg.playerID)
 				case *updateMsgChangeStateTo:
 					u.changeStateTo(ctx, s, msg.nextState)
+				case *updateMsgSetPlayerReady:
+					u.setPlayerReady(ctx, s, msg.playerID, msg.ready)
 				case *updateMsgUpdTaskAnswer:
 					u.updateAnswer(msg.ctx, s, msg.playerID, msg.answer, msg.ready, msg.taskIdx)
 				}
 			})
 		}
-	}
-}
-
-func (u *sessionUpdater) updateAnswer(
-	ctx context.Context,
-	s *UnsafeStorage,
-	playerID PlayerID,
-	answer TaskAnswer,
-	ready bool,
-	taskIdx int,
-) {
-	state := s.sessionState(u.sid)
-	if state == nil {
-		return
-	}
-
-	player, err := s.PlayerByID(u.sid, playerID)
-	if err != nil {
-		u.log.Printf("could not update the answer for task %d: %s", taskIdx, err)
-		return
-	}
-	switch state := state.(type) {
-	case *TaskStartedState:
-		if state.taskIdx > taskIdx {
-			return
-		}
-		if state.taskIdx < taskIdx {
-			u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
-			u.m.closePlayerTx(s, u.sid, playerID)
-			return
-		}
-
-		if answer != nil {
-			state.answers[playerID] = answer
-		}
-		if ready {
-			state.ready[playerID] = struct{}{}
-		} else {
-			delete(state.ready, playerID)
-		}
-
-	default:
-		// ignore TaskAnswer for other states
 	}
 }
 
@@ -338,6 +305,70 @@ func (u *sessionUpdater) changeStateTo(
 	}
 
 	s.setSessionState(u.sid, nextState)
+}
+
+func (u *sessionUpdater) setPlayerReady(
+	ctx context.Context,
+	s *UnsafeStorage,
+	playerID PlayerID,
+	ready bool,
+) {
+	state := s.sessionState(u.sid)
+	if state == nil {
+		return
+	}
+
+	if _, err := s.PlayerByID(u.sid, playerID); err != nil {
+		u.log.Printf("could not set player readiness: %s", err)
+		return
+	}
+
+	if state, ok := state.(*AwaitingPlayersState); ok {
+		u.setPlayerStartReady(ctx, s, state, playerID, ready)
+	}
+}
+
+func (u *sessionUpdater) updateAnswer(
+	ctx context.Context,
+	s *UnsafeStorage,
+	playerID PlayerID,
+	answer TaskAnswer,
+	ready bool,
+	taskIdx int,
+) {
+	state := s.sessionState(u.sid)
+	if state == nil {
+		return
+	}
+
+	player, err := s.PlayerByID(u.sid, playerID)
+	if err != nil {
+		u.log.Printf("could not update the answer for task %d: %s", taskIdx, err)
+		return
+	}
+	switch state := state.(type) {
+	case *TaskStartedState:
+		if state.taskIdx > taskIdx {
+			return
+		}
+		if state.taskIdx < taskIdx {
+			u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
+			u.m.closePlayerTx(s, u.sid, playerID)
+			return
+		}
+
+		if answer != nil {
+			state.answers[playerID] = answer
+		}
+		if ready {
+			state.ready[playerID] = struct{}{}
+		} else {
+			delete(state.ready, playerID)
+		}
+
+	default:
+		// ignore TaskAnswer for other states
+	}
 }
 
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
