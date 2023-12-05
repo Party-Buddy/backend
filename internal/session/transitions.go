@@ -49,6 +49,8 @@ func (u *sessionUpdater) makePlainTaskEndedState(s *UnsafeStorage, state *TaskSt
 	case CheckedTextTask:
 		answerIndices := make(map[string]int)
 
+		// NOTE: it's imperative we traverse s.Players and not state.answers:
+		// we're only interested in players still in the session
 		for _, player := range s.Players(u.sid) {
 			answerOpaque, ok := state.answers[player.ID]
 			if !ok {
@@ -81,6 +83,8 @@ func (u *sessionUpdater) makePlainTaskEndedState(s *UnsafeStorage, state *TaskSt
 			})
 		}
 
+		// NOTE: it's imperative we traverse s.Players and not state.answers:
+		// we're only interested in players still in the session
 		for _, player := range s.Players(u.sid) {
 			answerOpaque, ok := state.answers[player.ID]
 			if !ok {
