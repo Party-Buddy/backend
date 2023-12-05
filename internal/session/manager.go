@@ -110,6 +110,32 @@ func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
 	}
 }
 
+// # DB access
+
+func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionID, imageID ImageID) error {
+	if imageID.Valid {
+		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageID.UUID); err != nil {
+			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageID, sid, err)
+		}
+	}
+
+	return nil
+}
+
+func (m *Manager) newImgMetadataForSession(ctx context.Context, tx pgx.Tx, sid SessionID, clientID ClientID) (ImageID, error) {
+	var err error
+	var dbImgID uuid.NullUUID
+	dbImgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
+	if err != nil {
+		return ImageID{}, err
+	}
+	err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), dbImgID.UUID)
+	if err != nil {
+		return ImageID{}, err
+	}
+	return ImageID(dbImgID), nil
+}
+
 // # Synchronous methods
 
 // NewSession creates a new session.
@@ -160,16 +186,6 @@ func (m *Manager) NewSession(
 	}
 
 	return
-}
-
-func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionID, imageID ImageID) error {
-	if imageID.Valid {
-		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageID.UUID); err != nil {
-			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageID, sid, err)
-		}
-	}
-
-	return nil
 }
 
 func (m *Manager) JoinSession(
@@ -343,104 +359,18 @@ func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
 	}
 }
 
-func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) bool {
-	return s.closePlayerTx(sid, playerID)
-}
-
-func (m *Manager) makeMsgError(ctx context.Context, err error) ServerTx {
-	return &MsgError{
-		baseTx: baseTx{Ctx: ctx},
-		Inner:  err,
+func (m *Manager) sendToAllPlayers(s *UnsafeStorage, sid SessionID, message ServerTx) {
+	for _, tx := range s.PlayerTxs(sid) {
+		m.sendToPlayer(tx, message)
 	}
 }
 
-func (m *Manager) makeMsgJoined(
-	ctx context.Context,
-	playerID PlayerID,
-	sid SessionID,
-	game *Game,
-) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgGameStatus(ctx context.Context, players []Player) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgTaskStart(
-	ctx context.Context,
-	taskIdx int,
-	deadline time.Time,
-	task Task,
-	answer TaskAnswer,
-) ServerTx {
-	msg := &MsgTaskStart{
-		baseTx:   baseTx{Ctx: ctx},
-		TaskIdx:  taskIdx,
-		Deadline: deadline,
-	}
-	switch t := task.(type) {
-	case ChoiceTask:
-		msg.Options = &t.Options
-		return msg
-	case PhotoTask:
-		i := ImageID(answer.(PhotoTaskAnswer))
-		msg.ImgID = &i
-		return msg
-	default:
-		return msg
-	}
-
-}
-
-func (m *Manager) makeMsgPollStart(
-	ctx context.Context,
-	taskIdx int,
-	deadline time.Time,
-	options []PollOption,
-) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgTaskEnd(
-	ctx context.Context,
-	taskIdx int,
-	deadline time.Time,
-	results []AnswerResult,
-) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerID]struct{}) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) sendMsgErrorToAllPlayers(ctx context.Context, sid SessionID, s *UnsafeStorage, err error) {
+func (m *Manager) sendErrorToAllPlayers(ctx context.Context, s *UnsafeStorage, sid SessionID, err error) {
 	for _, tx := range s.PlayerTxs(sid) {
 		m.sendToPlayer(tx, m.makeMsgError(ctx, err))
 	}
 }
 
-func (m *Manager) newImgMetadataForSession(ctx context.Context, tx pgx.Tx, sid SessionID, clientID ClientID) (ImageID, error) {
-	var err error
-	var dbImgID uuid.NullUUID
-	dbImgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
-	if err != nil {
-		return ImageID{}, err
-	}
-	err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), dbImgID.UUID)
-	if err != nil {
-		return ImageID{}, err
-	}
-	return ImageID(dbImgID), nil
+func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) bool {
+	return s.closePlayerTx(sid, playerID)
 }

@@ -278,7 +278,7 @@ func (u *sessionUpdater) changeStateTo(
 			})
 			if err != nil {
 				u.log.Printf("could not start a PhotoTask: %s", err)
-				u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
+				u.m.sendErrorToAllPlayers(ctx, s, u.sid, ErrInternal)
 				u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
 					u.m.closeSession(ctx, s, tx, u.sid)
 					tx.Commit(ctx)
@@ -374,7 +374,7 @@ func (u *sessionUpdater) updateAnswer(
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
 	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
-		u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrNoOwnerTimeout)
+		u.m.sendErrorToAllPlayers(ctx, s, u.sid, ErrNoOwnerTimeout)
 		u.changeStateTo(ctx, s, nil)
 
 	case *GameStartedState:
