@@ -578,3 +578,11 @@ type MessageTaskEnd struct {
 }
 
 func (*MessageTaskEnd) isRespMessage() {}
+
+type MessageGameStart struct {
+	BaseMessage
+
+	Deadline time.Time `json:"deadline"`
+}
+
+func (*MessageGameStart) isRespMessage() {}

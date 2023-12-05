@@ -123,7 +123,8 @@ func (c *ConnInfo) runServeToWriterConverter(
 				c.state = taskEndedState{}
 
 			case *session.MsgGameStart:
-				// TODO: send GameStart
+				gameStartMsg := converters.ToMessageGameStart(*m)
+				msgChan <- &gameStartMsg
 				c.state = gameStartedState{}
 
 			case *session.MsgWaiting:
