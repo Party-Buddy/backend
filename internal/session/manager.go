@@ -259,6 +259,10 @@ func (m *Manager) SetPlayerReady(ctx context.Context, sid SessionID, playerID Pl
 			err = ErrNoSession
 			return
 		}
+		if !s.PlayerExists(sid, playerID) {
+			err = ErrNoPlayer
+			return
+		}
 	})
 
 	if err != nil {
@@ -288,8 +292,7 @@ func (m *Manager) UpdatePlayerAnswer(
 			err = ErrNoSession
 			return
 		}
-		_, err = s.PlayerByID(sid, playerID)
-		if err != nil {
+		if !s.PlayerExists(sid, playerID) {
 			err = ErrNoPlayer
 			return
 		}

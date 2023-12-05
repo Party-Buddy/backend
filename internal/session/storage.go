@@ -258,6 +258,14 @@ func (s *UnsafeStorage) closeUpdater(sid SessionID) bool {
 	return false
 }
 
+func (s *UnsafeStorage) PlayerExists(sid SessionID, playerID PlayerID) bool {
+	if session := s.sessions[sid]; session != nil {
+		_, ok := session.players[playerID]
+		return ok
+	}
+	return false
+}
+
 // HasPlayerNickname returns true iff there's a player with the given nickname in a session.
 func (s *UnsafeStorage) HasPlayerNickname(sid SessionID, nickname string) bool {
 	session := s.sessions[sid]
