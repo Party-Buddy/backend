@@ -79,6 +79,7 @@ func (m *Manager) makeMsgTaskEnd(
 		Task:       task,
 		Results:    results,
 		Scoreboard: scoreboard,
+		Winners:    winners,
 	}
 }
 
