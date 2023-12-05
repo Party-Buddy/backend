@@ -95,16 +95,17 @@ func (c *ConnInfo) runServeToWriterConverter(
 				c.stopRequested.Store(true)
 				return
 			}
-			// TODO: ServeTx -> RespMessage
-			// TODO: send converted msg to c.msgToClientChan
+
 			switch m := msg.(type) {
 			case *session.MsgError:
-				// TODO: send an error
+				refID := msgIDFromContext(m.Context())
+				kind, errMsg := converters.ErrorKindAndMessage(m.Inner)
+				errorMsg := utils.GenMessageError(refID, kind, errMsg)
+				msgChan <- &errorMsg
 
 			case *session.MsgJoined:
 				joinedMsg := converters.ToMessageJoined(*m)
-				refID := msgIDFromContext(m.Context())
-				joinedMsg.RefID = &refID
+				joinedMsg.RefID = msgIDFromContext(m.Context())
 				msgChan <- &joinedMsg
 				c.state = awaitingPlayersState{}
 
@@ -161,8 +162,11 @@ type msgIDKeyType int
 
 var msgIDKey msgIDKeyType
 
-func msgIDFromContext(ctx context.Context) ws.MessageID {
-	return ctx.Value(msgIDKey).(ws.MessageID)
+func msgIDFromContext(ctx context.Context) *ws.MessageID {
+	if msgID, ok := ctx.Value(msgIDKey).(ws.MessageID); ok {
+		return &msgID
+	}
+	return nil
 }
 
 func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {

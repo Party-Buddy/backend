@@ -71,7 +71,7 @@ func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer
 		case errors.Is(err, session.ErrNoPlayer):
 			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal,
 				fmt.Sprintf("client %s is not player with id %v in session", c.client, c.playerID.UUID().ID()))
-		case errors.Is(err, session.ErrNoTask):
+		case errors.Is(err, session.ErrTaskIndexOutOfBounds):
 			errMsg = utils.GenMessageError(m.MsgID, ws.ErrMalformedMsg,
 				fmt.Sprintf("no task with idx %v", *m.TaskIdx))
 		case errors.Is(err, session.ErrTypesTaskAndAnswerMismatch):

@@ -2,6 +2,8 @@ package session
 
 import "errors"
 
+// NOTE: if you're adding an error here, don't forget to fix the switch in ws/converters/error
+
 var (
 	ErrNoOwnerTimeout = errors.New("timed out waiting for the owner to join")
 	ErrReconnected    = errors.New("client joined the session from another connection")
@@ -17,10 +19,12 @@ var (
 )
 
 var (
-	ErrInternal                   = errors.New("internal error")
-	ErrNoPlayer                   = errors.New("no player with such id")
+	ErrInternal = errors.New("internal error")
+	ErrNoPlayer = errors.New("no player with such id")
+)
+
+var (
 	ErrTaskNotStartedYet          = errors.New("task hasn't been started yet")
 	ErrTypesTaskAndAnswerMismatch = errors.New("answer type cannot be used with this task")
-	ErrProtoViolation             = errors.New("protocol violation")
-	ErrNoTask                     = errors.New("no task with such index")
+	ErrTaskIndexOutOfBounds       = errors.New("no task with such index")
 )

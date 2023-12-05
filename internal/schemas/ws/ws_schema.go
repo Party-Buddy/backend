@@ -112,6 +112,7 @@ var (
 	ErrInternal       ErrorKind = "internal"
 	ErrMalformedMsg   ErrorKind = "malformed-msg"
 	ErrProtoViolation ErrorKind = "proto-violation"
+	ErrReconnected    ErrorKind = "reconnected"
 )
 
 // JoinErrorKind codes

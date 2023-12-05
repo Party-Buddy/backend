@@ -301,7 +301,7 @@ func (m *Manager) UpdatePlayerAnswer(
 			// now we are checking that task type matches provided answer type
 			task := s.taskByIdx(sid, taskIdx)
 			if task == nil {
-				err = ErrNoTask
+				err = ErrTaskIndexOutOfBounds
 				return
 			}
 			ok := false
