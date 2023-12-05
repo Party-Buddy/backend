@@ -6,6 +6,7 @@ import (
 	"image/jpeg"
 	"log"
 	"net/http"
+	"party-buddy/internal/api/base"
 	"party-buddy/internal/api/middleware"
 	"party-buddy/internal/db"
 	"party-buddy/internal/schemas/api"
@@ -20,14 +21,14 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	val, ok := vars["img-id"]
 	if !ok {
 		msg := "img-id not provided"
-		WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
+		base.WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 		return
 	}
 	imgID, err := uuid.Parse(val)
 	if err != nil {
 		msg := "invalid url"
-		WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
+		base.WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 		return
 	}
@@ -38,7 +39,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		msg := "not found"
-		WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
+		base.WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 		return
 	}
@@ -47,7 +48,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !imgMetadata.Uploaded {
 		msg := "image is not uploaded"
-		WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
+		base.WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 		return
 	}
@@ -55,7 +56,7 @@ func (g GetImageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	img, err := db.GetImageFromFS(imgMetadata.ID.UUID)
 	if err != nil {
 		msg := "image not found in storage"
-		WriteErrorResponse(w, http.StatusInternalServerError, api.ErrInternal, msg)
+		base.WriteErrorResponse(w, http.StatusInternalServerError, api.ErrInternal, msg)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 		return
 	}

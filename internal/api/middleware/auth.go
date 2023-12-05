@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/google/uuid"
 	"log"
 	"net/http"
+	"party-buddy/internal/api/base"
 	"party-buddy/internal/db"
 	"party-buddy/internal/schemas/api"
 	"strings"
@@ -23,33 +23,26 @@ type AuthInfo struct {
 // AuthMiddleware must be applied after DBUsingMiddleware
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		encoder := json.NewEncoder(w)
 		val := r.Header.Get("Authorization")
 		if val == "" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			dto := api.Errorf(api.ErrAuthRequired, "authentication required")
-			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
-			_ = encoder.Encode(dto)
+			msg := "authentication required"
+			base.WriteErrorResponse(w, http.StatusUnauthorized, api.ErrAuthRequired, msg)
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 			return
 		}
 		strUUID, found := strings.CutPrefix(val, "Bearer ")
 		if !found {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			dto := api.Errorf(api.ErrUserIDInvalid, "provided user id is not valid")
-			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
-			_ = encoder.Encode(dto)
+			msg := "provided user id is not valid"
+			base.WriteErrorResponse(w, http.StatusUnauthorized, api.ErrUserIDInvalid, msg)
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 			return
 		}
 
 		userID, err := uuid.Parse(strUUID)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			dto := api.Errorf(api.ErrUserIDInvalid, "provided user id is not valid")
-			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
-			_ = encoder.Encode(dto)
+			msg := "provided user id is not valid"
+			base.WriteErrorResponse(w, http.StatusUnauthorized, api.ErrUserIDInvalid, msg)
+			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 			return
 		}
 
@@ -57,11 +50,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		entity, err := db.GetUserByID(r.Context(), tx, userID)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			dto := api.Errorf(api.ErrInternal, "internal server error while getting user")
+			msg := "internal server error while getting user"
+			base.WriteErrorResponse(w, http.StatusUnauthorized, api.ErrInternal, msg)
 			log.Printf("request: %v %s -> err: %v", r.Method, r.URL, err)
-			_ = encoder.Encode(dto)
 			return
 		}
 		authInfo := AuthInfo{ID: entity.ID.UUID, Role: entity.Role}

@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"party-buddy/internal/api/base"
 	"party-buddy/internal/api/middleware"
 	"party-buddy/internal/schemas/api"
 )
@@ -17,7 +18,7 @@ func (GetGameHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	val, ok := mux.Vars(r)["game-id"]
 	if !ok {
 		msg := "game-id not provided"
-		WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
+		base.WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 		return
 	}
@@ -25,7 +26,7 @@ func (GetGameHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	gameID, err := uuid.Parse(val)
 	if err != nil {
 		msg := "invalid game-id"
-		WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
+		base.WriteErrorResponse(w, http.StatusNotFound, api.ErrNotFound, msg)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, msg)
 		return
 	}
@@ -36,7 +37,7 @@ func (GetGameHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var errConv api.ErrorFromConverters
 		errors.As(err, &errConv)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, errConv)
-		WriteErrorResponse(w, errConv.StatusCode, errConv.ApiError.Kind, errConv.ApiError.Message)
+		base.WriteErrorResponse(w, errConv.StatusCode, errConv.ApiError.Kind, errConv.ApiError.Message)
 		return
 	}
 
