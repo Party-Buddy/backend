@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	"log"
 	"net/http"
+	"party-buddy/internal/api/base"
 	"party-buddy/internal/db"
 	"party-buddy/internal/schemas/api"
 )
@@ -22,17 +22,10 @@ type DBUsingMiddleware struct {
 // Middleware starts transaction and puts the tx (pgx.Tx) and ctx (context.Context) to request context
 func (dbm DBUsingMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		encoder := json.NewEncoder(w)
-
 		tx, err := dbm.Pool.Pool().Begin(r.Context())
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			dto := api.Errorf(api.ErrInternal, "")
-			_ = encoder.Encode(dto)
-			log.Printf("request: %v %s -> err: %v", r.Method, r.URL,
-				api.Errorf(api.ErrInternal, "failed to start transaction").Error())
-
+			base.WriteErrorResponse(w, http.StatusInternalServerError, api.ErrInternal, "internal server error")
+			log.Printf("request: %v %s -> falided to start transaction with err: %v", r.Method, r.URL, err)
 			return
 		}
 		defer tx.Rollback(r.Context())

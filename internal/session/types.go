@@ -54,6 +54,10 @@ func (id ClientID) UUID() uuid.UUID {
 	return uuid.UUID(id)
 }
 
+func (id ClientID) String() string {
+	return id.UUID().String()
+}
+
 func NewSessionID() SessionID {
 	uuid, err := uuid.NewRandom()
 	if err != nil {
