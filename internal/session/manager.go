@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"log"
 	"party-buddy/internal/db"
-	"party-buddy/internal/util"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -17,13 +16,15 @@ type Manager struct {
 	db      *db.DBPool
 	storage SyncStorage
 	runChan chan runMsg
+	log     *log.Logger
 }
 
-func NewManager(db *db.DBPool) *Manager {
+func NewManager(db *db.DBPool, logger *log.Logger) *Manager {
 	return &Manager{
 		db:      db,
 		storage: NewSyncStorage(),
 		runChan: make(chan runMsg),
+		log:     logger,
 	}
 }
 
@@ -70,9 +71,9 @@ outer:
 			switch msg := msg.(type) {
 			case *runMsgSpawn:
 				logger := log.New(
-					log.Default().Writer(),
-					fmt.Sprintf("sessionUpdater(sid %s)", msg.sid),
-					log.Default().Flags(),
+					m.log.Writer(),
+					fmt.Sprintf("sessionUpdater(sid %s): ", msg.sid),
+					m.log.Flags(),
 				)
 				updater := sessionUpdater{
 					m:        m,
@@ -210,7 +211,10 @@ func (m *Manager) JoinSession(
 
 		// note: we must add the player inside the critical section.
 		// we don't want to end up accepting two simultaneous requests to join.
-		player = util.Must(s.addPlayer(sid, clientID, nickname, tx))
+		if player, err = s.addPlayer(sid, clientID, nickname, tx); err != nil {
+			err = fmt.Errorf("%w: could not add player to the session: %w", ErrInternal, err)
+			return
+		}
 	})
 
 	if err != nil {
@@ -232,6 +236,62 @@ func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID Play
 	})
 }
 
+func (m *Manager) UpdatePlayerAnswer(
+	ctx context.Context,
+	sid SessionID,
+	playerID PlayerID,
+	answer TaskAnswer,
+	ready bool,
+	taskIdx int,
+) error {
+	var err error
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		if !s.SessionExists(sid) {
+			err = ErrNoSession
+			return
+		}
+		_, err = s.PlayerByID(sid, playerID)
+		if err != nil {
+			err = ErrNoPlayer
+			return
+		}
+		if answer != nil {
+			// during validation, we checked that provided value of answer matched provided answer type
+			// now we are checking that task type matches provided answer type
+			task := s.taskByIdx(sid, taskIdx)
+			if task == nil {
+				err = ErrNoTask
+				return
+			}
+			ok := false
+			switch task.(type) {
+			case ChoiceTask:
+				_, ok = answer.(ChoiceTaskAnswer)
+			case CheckedTextTask:
+				_, ok = answer.(CheckedTextAnswer)
+			case TextTask:
+				_, ok = answer.(TextTaskAnswer)
+			}
+			if !ok {
+				err = ErrTypesTaskAndAnswerMismatch
+				return
+			}
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	m.sendToUpdater(sid, &updateMsgUpdTaskAnswer{
+		ctx:      ctx,
+		playerID: playerID,
+		answer:   answer,
+		ready:    ready,
+		taskIdx:  taskIdx,
+	})
+	return nil
+}
+
 // closeSession terminates the session and removes it from the storage.
 //
 // This method can be called by an updater.
@@ -245,7 +305,10 @@ func (m *Manager) closeSession(
 		m.closePlayerTx(s, sid, p.ID)
 	})
 
-	db.RemoveSessionImageRefs(ctx, tx, sid.UUID())
+	if err := db.RemoveSessionImageRefs(ctx, tx, sid.UUID()); err != nil {
+		m.log.Printf("while closing session %s: could not remove session image references: %s", sid, err)
+	}
+
 	s.closeUpdater(sid)
 	s.removeSession(sid)
 }
@@ -358,60 +421,4 @@ func (m *Manager) newImgMetadataForSession(ctx context.Context, tx pgx.Tx, sid S
 		return ImageID{}, err
 	}
 	return ImageID(dbImgID), nil
-}
-
-func (m *Manager) UpdatePlayerAnswer(
-	ctx context.Context,
-	sid SessionID,
-	playerID PlayerID,
-	answer TaskAnswer,
-	ready bool,
-	taskIdx int,
-) error {
-	var err error
-	m.storage.Atomically(func(s *UnsafeStorage) {
-		if !s.SessionExists(sid) {
-			err = ErrNoSession
-			return
-		}
-		_, err = s.PlayerByID(sid, playerID)
-		if err != nil {
-			err = ErrNoPlayer
-			return
-		}
-		if answer != nil {
-			// during validation, we checked that provided value of answer matched provided answer type
-			// now we are checking that task type matches provided answer type
-			task := s.getTaskByIdx(sid, taskIdx)
-			if task == nil {
-				err = ErrNoTask
-				return
-			}
-			ok := false
-			switch task.(type) {
-			case ChoiceTask:
-				_, ok = answer.(ChoiceTaskAnswer)
-			case CheckedTextTask:
-				_, ok = answer.(CheckedTextAnswer)
-			case TextTask:
-				_, ok = answer.(TextTaskAnswer)
-			}
-			if !ok {
-				err = ErrTypesTaskAndAnswerMismatch
-				return
-			}
-		}
-	})
-	if err != nil {
-		return err
-	}
-
-	m.sendToUpdater(sid, &updateMsgUpdTaskAnswer{
-		ctx:      ctx,
-		playerID: playerID,
-		answer:   answer,
-		ready:    ready,
-		taskIdx:  taskIdx,
-	})
-	return nil
 }

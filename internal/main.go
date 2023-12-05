@@ -66,7 +66,7 @@ func Main() {
 		log.Fatalf("Failed to init db pool: %v", err.Error())
 	}
 
-	manager := session.NewManager(&dbpool)
+	manager := session.NewManager(&dbpool, log.New(log.Writer(), "manager: ", log.Flags()))
 
 	handler := handlers.ConfigureMux(&dbpool, manager)
 

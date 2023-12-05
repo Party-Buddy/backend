@@ -367,7 +367,7 @@ func (s *UnsafeStorage) AwaitingPlayers(sid SessionID) bool {
 	return false
 }
 
-func (s *UnsafeStorage) getTaskByIdx(sid SessionID, taskIdx int) Task {
+func (s *UnsafeStorage) taskByIdx(sid SessionID, taskIdx int) Task {
 	if session := s.sessions[sid]; session != nil {
 		if taskIdx < 0 || taskIdx >= len(session.game.Tasks) {
 			return nil

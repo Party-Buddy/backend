@@ -107,8 +107,7 @@ func (u *sessionUpdater) updateAnswer(
 
 	player, err := s.PlayerByID(u.sid, playerID)
 	if err != nil {
-		u.log.Printf("unexpected disappearance of player %s when handling task answer for task %v",
-			playerID, taskIdx)
+		u.log.Printf("could not update the answer for task %d: %s", taskIdx, err)
 		return
 	}
 	switch state := state.(type) {
@@ -142,14 +141,14 @@ func (u *sessionUpdater) playerAdded(
 	playerID PlayerID,
 	reconnected bool,
 ) {
-	player, err := s.PlayerByID(u.sid, playerID)
-	if err != nil {
-		u.log.Printf("while handling added player: %s", err)
+	state := s.sessionState(u.sid)
+	if state == nil {
 		return
 	}
 
-	state := s.sessionState(u.sid)
-	if state == nil {
+	player, err := s.PlayerByID(u.sid, playerID)
+	if err != nil {
+		u.log.Printf("could not handle added player: %s", err)
 		return
 	}
 
@@ -183,15 +182,12 @@ func (u *sessionUpdater) playerAdded(
 		stateMessage = u.m.makeMsgGameStart(ctx, state.deadline)
 
 	case *TaskStartedState:
-		task := s.getTaskByIdx(u.sid, state.taskIdx)
-		if task == nil {
-			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
-		}
+		task := game.Tasks[state.taskIdx]
 		switch task.(type) {
 		case PhotoTask:
 			answer, ok := state.answers[playerID]
 			if !ok {
-				u.log.Panicf("no prepared image player %s (nickname=%q, clientID=%s)",
+				u.log.Panicf("no image registered for player %s (nickname=%q, clientID=%s)",
 					playerID, player.Nickname, player.ClientID)
 			}
 			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, answer)
@@ -288,9 +284,9 @@ func (u *sessionUpdater) changeStateTo(
 		// TODO
 
 	case *TaskStartedState:
-		task := s.getTaskByIdx(u.sid, state.taskIdx)
+		task := s.taskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
+			u.log.Panicf("task %d not found", state.taskIdx)
 		}
 		switch task.(type) {
 		case PhotoTask:
@@ -314,7 +310,7 @@ func (u *sessionUpdater) changeStateTo(
 				return nil
 			})
 			if err != nil {
-				u.log.Printf("failed to create image metadata in session for all players because of err: %s", err)
+				u.log.Printf("could not start a PhotoTask: %s", err)
 				u.m.sendMsgErrorToAllPlayers(ctx, u.sid, s, ErrInternal)
 				u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
 					u.m.closeSession(ctx, s, tx, u.sid)
@@ -354,9 +350,9 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 		u.changeStateTo(ctx, s, u.makeFirstTaskStartedState(s, state))
 
 	case *TaskStartedState:
-		task := s.getTaskByIdx(u.sid, state.taskIdx)
+		task := s.taskByIdx(u.sid, state.taskIdx)
 		if task == nil {
-			u.log.Panicf("unexpected task disappearance %v", state.taskIdx)
+			u.log.Panicf("task %d not found", state.taskIdx)
 		}
 		if task.NeedsPoll() {
 			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
@@ -457,9 +453,9 @@ func (u *sessionUpdater) makeGameStartedState(s *UnsafeStorage, state *AwaitingP
 }
 
 func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *GameStartedState) *TaskStartedState {
-	task := s.getTaskByIdx(u.sid, 0)
+	task := s.taskByIdx(u.sid, 0)
 	if task == nil {
-		u.log.Panicf("unexpected task disappearance %v", 0)
+		u.log.Panicf("task 0 not found")
 	}
 	return &TaskStartedState{
 		taskIdx:  0,
@@ -471,9 +467,9 @@ func (u *sessionUpdater) makeFirstTaskStartedState(s *UnsafeStorage, state *Game
 }
 
 func (u *sessionUpdater) makeNextTaskStartedState(s *UnsafeStorage, state *TaskEndedState) *TaskStartedState {
-	task := s.getTaskByIdx(u.sid, state.taskIdx+1)
+	task := s.taskByIdx(u.sid, state.taskIdx+1)
 	if task == nil {
-		u.log.Panicf("unexpected task disappearance %v", state.taskIdx+1)
+		u.log.Panicf("task %d not found", state.taskIdx+1)
 	}
 	return &TaskStartedState{
 		taskIdx:  state.taskIdx + 1,
