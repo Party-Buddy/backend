@@ -19,8 +19,8 @@ var (
 var (
 	ErrInternal                   = errors.New("internal error")
 	ErrNoPlayer                   = errors.New("no player with such id")
-	ErrTaskNotStartedYet          = errors.New("task had not started")
-	ErrTypesTaskAndAnswerMismatch = errors.New("types of task and provided answer NOT match")
+	ErrTaskNotStartedYet          = errors.New("task hasn't been started yet")
+	ErrTypesTaskAndAnswerMismatch = errors.New("answer type cannot be used with this task")
 	ErrProtoViolation             = errors.New("protocol violation")
 	ErrNoTask                     = errors.New("no task with such index")
 )

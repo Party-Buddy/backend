@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"log"
 	"party-buddy/internal/db"
-	"party-buddy/internal/util"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -17,13 +16,15 @@ type Manager struct {
 	db      *db.DBPool
 	storage SyncStorage
 	runChan chan runMsg
+	log     *log.Logger
 }
 
-func NewManager(db *db.DBPool) *Manager {
+func NewManager(db *db.DBPool, logger *log.Logger) *Manager {
 	return &Manager{
 		db:      db,
 		storage: NewSyncStorage(),
 		runChan: make(chan runMsg),
+		log:     logger,
 	}
 }
 
@@ -70,9 +71,9 @@ outer:
 			switch msg := msg.(type) {
 			case *runMsgSpawn:
 				logger := log.New(
-					log.Default().Writer(),
-					fmt.Sprintf("sessionUpdater(sid %s)", msg.sid),
-					log.Default().Flags(),
+					m.log.Writer(),
+					fmt.Sprintf("sessionUpdater(sid %s): ", msg.sid),
+					m.log.Flags(),
 				)
 				updater := sessionUpdater{
 					m:        m,
@@ -107,6 +108,32 @@ func (m *Manager) sendToUpdater(sid SessionID, msg updateMsg) {
 		})
 		updaterChan <- msg
 	}
+}
+
+// # DB access
+
+func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionID, imageID ImageID) error {
+	if imageID.Valid {
+		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageID.UUID); err != nil {
+			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageID, sid, err)
+		}
+	}
+
+	return nil
+}
+
+func (m *Manager) newImgMetadataForSession(ctx context.Context, tx pgx.Tx, sid SessionID, clientID ClientID) (ImageID, error) {
+	var err error
+	var dbImgID uuid.NullUUID
+	dbImgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
+	if err != nil {
+		return ImageID{}, err
+	}
+	err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), dbImgID.UUID)
+	if err != nil {
+		return ImageID{}, err
+	}
+	return ImageID(dbImgID), nil
 }
 
 // # Synchronous methods
@@ -161,16 +188,6 @@ func (m *Manager) NewSession(
 	return
 }
 
-func (m *Manager) registerImage(ctx context.Context, tx pgx.Tx, sid SessionID, imageID ImageID) error {
-	if imageID.Valid {
-		if err := db.CreateSessionImageRef(ctx, tx, sid.UUID(), imageID.UUID); err != nil {
-			return fmt.Errorf("could not register an image (id %s) for session %s: %w", imageID, sid, err)
-		}
-	}
-
-	return nil
-}
-
 func (m *Manager) JoinSession(
 	ctx context.Context,
 	sid SessionID,
@@ -210,7 +227,10 @@ func (m *Manager) JoinSession(
 
 		// note: we must add the player inside the critical section.
 		// we don't want to end up accepting two simultaneous requests to join.
-		player = util.Must(s.addPlayer(sid, clientID, nickname, tx))
+		if player, err = s.addPlayer(sid, clientID, nickname, tx); err != nil {
+			err = fmt.Errorf("%w: could not add player to the session: %w", ErrInternal, err)
+			return
+		}
 	})
 
 	if err != nil {
@@ -232,132 +252,30 @@ func (m *Manager) RemovePlayer(ctx context.Context, sid SessionID, playerID Play
 	})
 }
 
-// closeSession terminates the session and removes it from the storage.
-//
-// This method can be called by an updater.
-func (m *Manager) closeSession(
-	ctx context.Context,
-	s *UnsafeStorage,
-	tx pgx.Tx,
-	sid SessionID,
-) {
-	s.ForEachPlayer(sid, func(p Player) {
-		m.closePlayerTx(s, sid, p.ID)
+// SetPlayerReady sets the readiness of a player for the game.
+func (m *Manager) SetPlayerReady(ctx context.Context, sid SessionID, playerID PlayerID, ready bool) (err error) {
+	m.storage.Atomically(func(s *UnsafeStorage) {
+		if !s.SessionExists(sid) {
+			err = ErrNoSession
+			return
+		}
+		if !s.PlayerExists(sid, playerID) {
+			err = ErrNoPlayer
+			return
+		}
 	})
 
-	db.RemoveSessionImageRefs(ctx, tx, sid.UUID())
-	s.closeUpdater(sid)
-	s.removeSession(sid)
-}
-
-// # Server-to-client communication
-
-func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
-	if tx != nil {
-		tx <- message
-	}
-}
-
-func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) bool {
-	return s.closePlayerTx(sid, playerID)
-}
-
-func (m *Manager) makeMsgError(ctx context.Context, err error) ServerTx {
-	return &MsgError{
-		baseTx: baseTx{Ctx: ctx},
-		Inner:  err,
-	}
-}
-
-func (m *Manager) makeMsgJoined(
-	ctx context.Context,
-	playerID PlayerID,
-	sid SessionID,
-	game *Game,
-) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgGameStatus(ctx context.Context, players []Player) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgTaskStart(
-	ctx context.Context,
-	taskIdx int,
-	deadline time.Time,
-	task Task,
-	answer TaskAnswer,
-) ServerTx {
-	msg := &MsgTaskStart{
-		baseTx:   baseTx{Ctx: ctx},
-		TaskIdx:  taskIdx,
-		Deadline: deadline,
-	}
-	switch t := task.(type) {
-	case ChoiceTask:
-		msg.Options = &t.Options
-		return msg
-	case PhotoTask:
-		i := ImageID(answer.(PhotoTaskAnswer))
-		msg.ImgID = &i
-		return msg
-	default:
-		return msg
-	}
-
-}
-
-func (m *Manager) makeMsgPollStart(
-	ctx context.Context,
-	taskIdx int,
-	deadline time.Time,
-	options []PollOption,
-) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgTaskEnd(
-	ctx context.Context,
-	taskIdx int,
-	deadline time.Time,
-	results []AnswerResult,
-) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerID]struct{}) ServerTx {
-	// TODO
-	return nil
-}
-
-func (m *Manager) sendMsgErrorToAllPlayers(ctx context.Context, sid SessionID, s *UnsafeStorage, err error) {
-	for _, tx := range s.PlayerTxs(sid) {
-		m.sendToPlayer(tx, m.makeMsgError(ctx, err))
-	}
-}
-
-func (m *Manager) newImgMetadataForSession(ctx context.Context, tx pgx.Tx, sid SessionID, clientID ClientID) (ImageID, error) {
-	var err error
-	var dbImgID uuid.NullUUID
-	dbImgID, err = db.CreateImageMetadata(tx, ctx, clientID.UUID())
 	if err != nil {
-		return ImageID{}, err
+		return
 	}
-	err = db.CreateSessionImageRef(ctx, tx, sid.UUID(), dbImgID.UUID)
-	if err != nil {
-		return ImageID{}, err
-	}
-	return ImageID(dbImgID), nil
+
+	m.sendToUpdater(sid, &updateMsgSetPlayerReady{
+		ctx:      ctx,
+		playerID: playerID,
+		ready:    ready,
+	})
+
+	return
 }
 
 func (m *Manager) UpdatePlayerAnswer(
@@ -374,15 +292,14 @@ func (m *Manager) UpdatePlayerAnswer(
 			err = ErrNoSession
 			return
 		}
-		_, err = s.PlayerByID(sid, playerID)
-		if err != nil {
+		if !s.PlayerExists(sid, playerID) {
 			err = ErrNoPlayer
 			return
 		}
 		if answer != nil {
 			// during validation, we checked that provided value of answer matched provided answer type
 			// now we are checking that task type matches provided answer type
-			task := s.getTaskByIdx(sid, taskIdx)
+			task := s.taskByIdx(sid, taskIdx)
 			if task == nil {
 				err = ErrNoTask
 				return
@@ -414,4 +331,49 @@ func (m *Manager) UpdatePlayerAnswer(
 		taskIdx:  taskIdx,
 	})
 	return nil
+}
+
+// closeSession terminates the session and removes it from the storage.
+//
+// This method can be called by an updater.
+func (m *Manager) closeSession(
+	ctx context.Context,
+	s *UnsafeStorage,
+	tx pgx.Tx,
+	sid SessionID,
+) {
+	s.ForEachPlayer(sid, func(p Player) {
+		m.closePlayerTx(s, sid, p.ID)
+	})
+
+	if err := db.RemoveSessionImageRefs(ctx, tx, sid.UUID()); err != nil {
+		m.log.Printf("while closing session %s: could not remove session image references: %s", sid, err)
+	}
+
+	s.closeUpdater(sid)
+	s.removeSession(sid)
+}
+
+// # Server-to-client communication
+
+func (m *Manager) sendToPlayer(tx TxChan, message ServerTx) {
+	if tx != nil {
+		tx <- message
+	}
+}
+
+func (m *Manager) sendToAllPlayers(s *UnsafeStorage, sid SessionID, message ServerTx) {
+	for _, tx := range s.PlayerTxs(sid) {
+		m.sendToPlayer(tx, message)
+	}
+}
+
+func (m *Manager) sendErrorToAllPlayers(ctx context.Context, s *UnsafeStorage, sid SessionID, err error) {
+	for _, tx := range s.PlayerTxs(sid) {
+		m.sendToPlayer(tx, m.makeMsgError(ctx, err))
+	}
+}
+
+func (m *Manager) closePlayerTx(s *UnsafeStorage, sid SessionID, playerID PlayerID) bool {
+	return s.closePlayerTx(sid, playerID)
 }
