@@ -61,10 +61,10 @@ type MsgTaskEnd struct {
 	TaskIdx  int
 	Deadline time.Time
 
-	Task          Task
-	AnswerResults []AnswerResult
-
-	// TODO: scoreboard
+	Task       Task
+	Results    []AnswerResult
+	Scoreboard Scoreboard
+	Winners    map[PlayerID]Score
 }
 
 func (*MsgTaskEnd) isServerTx() {}

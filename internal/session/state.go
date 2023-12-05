@@ -110,6 +110,11 @@ type TaskEndedState struct {
 
 	// The answers made by players — and the popularity of those answers.
 	results []AnswerResult
+
+	// For each player that gained points, the map tells how many.
+	//
+	// Those who got no points are not present in the map.
+	winners map[PlayerID]Score
 }
 
 func (s *TaskEndedState) Deadline() time.Time {

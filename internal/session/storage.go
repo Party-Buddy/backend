@@ -116,6 +116,7 @@ func (s *UnsafeStorage) newSession(
 			requireReady: requireReady,
 			owner:        owner,
 		},
+		scoreboard: make(map[PlayerID]Score),
 	}
 	s.inviteCodes[code] = sid
 
@@ -229,7 +230,31 @@ func (s *UnsafeStorage) SessionGame(sid SessionID) (game Game, ok bool) {
 	return
 }
 
-// SessionState returns a session's current state.
+// SessionScoreboard returns a clone of a session's scoreboard.
+func (s *UnsafeStorage) SessionScoreboard(sid SessionID) Scoreboard {
+	if session := s.sessions[sid]; session != nil {
+		return session.scoreboard.Clone()
+	}
+	return nil
+}
+
+// incrementScores takes scores from the given map and adds them to the values in a session's scoreboard.
+//
+// If a player ID in the map is missing from the scoreboard, the entry is ignored.
+func (s *UnsafeStorage) incrementScores(sid SessionID, scores map[PlayerID]Score) {
+	session := s.sessions[sid]
+	if session == nil {
+		return
+	}
+
+	for playerID, score := range scores {
+		if _, ok := session.scoreboard[playerID]; ok {
+			session.scoreboard[playerID] += score
+		}
+	}
+}
+
+// sessionState returns a session's current state.
 func (s *UnsafeStorage) sessionState(sid SessionID) State {
 	if session := s.sessions[sid]; session != nil {
 		return session.state
@@ -329,6 +354,7 @@ func (s *UnsafeStorage) addPlayer(
 	}
 	session.players[playerID] = player
 	session.clients[clientID] = playerID
+	session.scoreboard[playerID] = Score(0)
 
 	return
 }
@@ -347,6 +373,7 @@ func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID
 
 	delete(session.players, playerID)
 	delete(session.clients, clientID)
+	delete(session.scoreboard, playerID)
 
 	return playerID, true
 }

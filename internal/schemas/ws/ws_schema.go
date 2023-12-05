@@ -548,15 +548,19 @@ type TaskOptionAnswer struct {
 
 func (*TaskOptionAnswer) isAnswer() {}
 
+type TaskPlayerScore struct {
+	PlayerID    uuid.UUID `json:"player-id"`
+	TaskPoints  uint32    `json:"task-points"`
+	TotalPoints uint32    `json:"total-points"`
+}
+
 type MessageTaskEnd struct {
 	BaseMessage
 
-	TaskIdx  uint8     `json:"task-idx"`
-	Deadline time.Time `json:"deadline"`
-
-	Answers []Answer `json:"answers"`
-
-	// TODO: scoreboard
+	TaskIdx    uint8             `json:"task-idx"`
+	Deadline   time.Time         `json:"deadline"`
+	Scoreboard []TaskPlayerScore `json:"scoreboard"`
+	Answers    []Answer          `json:"answers"`
 }
 
 func (*MessageTaskEnd) isRespMessage() {}
