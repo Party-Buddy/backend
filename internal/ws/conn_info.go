@@ -99,7 +99,7 @@ func (c *ConnInfo) runServeToWriterConverter(
 			switch m := msg.(type) {
 			case *session.MsgError:
 				refID := msgIDFromContext(m.Context())
-				kind, errMsg := converters.ErrorKindAndMessage(m.Inner)
+				kind, errMsg := converters.ErrorCodeAndMessage(m.Inner)
 				errorMsg := utils.GenMessageError(refID, kind, errMsg)
 				msgChan <- &errorMsg
 
@@ -201,7 +201,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 		if !c.state.isAllowedMsg(msg) {
 			id := msg.GetMsgID()
 			errMsg := utils.GenMessageError(&id, ws.ErrProtoViolation,
-				fmt.Sprintf("forbidden message for current state"))
+				fmt.Sprintf("the message is not allowed in the current state"))
 			log.Printf("ConnInfo client: %s in session %s err: %v (code `%v`) (state `%s`)",
 				c.client, c.sid, err, errMsg.Code, c.state.name())
 			c.msgToClientChan <- &errMsg
@@ -219,7 +219,6 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 			log.Printf("ConnInfo client: %s session %s handling message TaskAnswer", c.client, c.sid)
 			c.handleTaskAnswer(ctx, m)
 		}
-
 	}
 }
 
@@ -229,7 +228,6 @@ func properWSClose(wsConn *websocket.Conn) {
 	_ = wsConn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	time.Sleep(timeout)
 	_ = wsConn.Close()
-
 }
 
 // dispose is used for closing ws connection and related channels.

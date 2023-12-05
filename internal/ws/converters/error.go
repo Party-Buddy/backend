@@ -6,9 +6,9 @@ import (
 	"party-buddy/internal/session"
 )
 
-// ErrorKindAndMessage takes a session package error and returns
-// its error kind and message suitable for sending over the wire.
-func ErrorKindAndMessage(err error) (kind ws.ErrorKind, msg string) {
+// ErrorCodeAndMessage takes a session package error and returns
+// its error code and a message suitable for sending over the wire.
+func ErrorCodeAndMessage(err error) (kind ws.ErrorKind, msg string) {
 	switch {
 	case errors.Is(err, session.ErrNoOwnerTimeout):
 		return ws.ErrSessionClosed, "timed out waiting for the owner"
