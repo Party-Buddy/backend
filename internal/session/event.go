@@ -89,7 +89,7 @@ func (*MsgGameStart) isServerTx() {}
 type MsgWaiting struct {
 	baseTx
 
-	playersReady map[PlayerID]struct{}
+	PlayersReady map[PlayerID]struct{}
 }
 
 func (*MsgWaiting) isServerTx() {}

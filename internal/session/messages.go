@@ -101,6 +101,6 @@ func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) Serv
 func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerID]struct{}) ServerTx {
 	return &MsgWaiting{
 		baseTx:       baseTx{Ctx: ctx},
-		playersReady: maps.Clone(playersReady),
+		PlayersReady: maps.Clone(playersReady),
 	}
 }

@@ -586,3 +586,11 @@ type MessageGameStart struct {
 }
 
 func (*MessageGameStart) isRespMessage() {}
+
+type MessageWaiting struct {
+	BaseMessage
+
+	Ready []uuid.UUID `json:"ready"`
+}
+
+func (*MessageWaiting) isRespMessage() {}
