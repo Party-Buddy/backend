@@ -91,32 +91,41 @@ func (c *ConnInfo) runServeToWriterConverter(
 			return
 
 		case msg := <-servChan:
-			{
-				if msg == nil {
-					c.stopRequested.Store(true)
-					return
-				}
-				// TODO: ServeTx -> RespMessage
-				// TODO: send converted msg to c.msgToClientChan
-				switch m := msg.(type) {
-				case *session.MsgJoined:
-					joinedMsg := converters.ToMessageJoined(*m)
-					refID := msgIDFromContext(m.Context())
-					joinedMsg.RefID = &refID
-					msgChan <- &joinedMsg
-					c.state = awaitingPlayersState{}
+			if msg == nil {
+				c.stopRequested.Store(true)
+				return
+			}
+			// TODO: ServeTx -> RespMessage
+			// TODO: send converted msg to c.msgToClientChan
+			switch m := msg.(type) {
+			case *session.MsgError:
+				// TODO: send an error
 
-				case *session.MsgTaskStart:
-					taskStartMsg := converters.ToMessageTaskStart(*m)
-					msgChan <- &taskStartMsg
-					c.state = taskStartedState{}
+			case *session.MsgJoined:
+				joinedMsg := converters.ToMessageJoined(*m)
+				refID := msgIDFromContext(m.Context())
+				joinedMsg.RefID = &refID
+				msgChan <- &joinedMsg
+				c.state = awaitingPlayersState{}
 
-				case *session.MsgTaskEnd:
-					taskEndMsg := converters.ToMessageTaskEnd(*m)
-					msgChan <- &taskEndMsg
-					c.state = taskEndedState{}
-				}
+			case *session.MsgGameStatus:
+				// TODO: send GameStatus
 
+			case *session.MsgTaskStart:
+				taskStartMsg := converters.ToMessageTaskStart(*m)
+				msgChan <- &taskStartMsg
+				c.state = taskStartedState{}
+
+			case *session.MsgTaskEnd:
+				taskEndMsg := converters.ToMessageTaskEnd(*m)
+				msgChan <- &taskEndMsg
+				c.state = taskEndedState{}
+
+			case *session.MsgGameStart:
+				// TODO: send GameStart
+
+			case *session.MsgWaiting:
+				// TODO: send Waiting
 			}
 		}
 	}
