@@ -336,8 +336,8 @@ func (u *sessionUpdater) updateAnswer(
 	ready bool,
 	taskIdx int,
 ) {
-	state := s.sessionState(u.sid)
-	if state == nil {
+	state, ok := s.sessionState(u.sid).(*TaskStartedState)
+	if !ok {
 		return
 	}
 
@@ -346,29 +346,21 @@ func (u *sessionUpdater) updateAnswer(
 		u.log.Printf("could not update the answer for task %d: %s", taskIdx, err)
 		return
 	}
-	switch state := state.(type) {
-	case *TaskStartedState:
-		if state.taskIdx > taskIdx {
-			return
-		}
-		if state.taskIdx < taskIdx {
-			u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
-			u.m.closePlayerTx(s, u.sid, playerID)
-			return
-		}
 
-		if answer != nil {
-			state.answers[playerID] = answer
-		}
-		if ready {
-			state.ready[playerID] = struct{}{}
-		} else {
-			delete(state.ready, playerID)
-		}
+	switch {
+	case state.taskIdx > taskIdx:
+		return
 
-	default:
-		// ignore TaskAnswer for other states
+	case state.taskIdx < taskIdx:
+		u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
+		u.m.closePlayerTx(s, u.sid, playerID)
+		return
 	}
+
+	if answer != nil {
+		state.answers[playerID] = answer
+	}
+	u.setPlayerAnswerReady(ctx, s, state, playerID, ready)
 }
 
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
@@ -464,7 +456,11 @@ func (u *sessionUpdater) setPlayerAnswerReady(
 	playerID PlayerID,
 	ready bool,
 ) {
-	// TODO
+	if ready {
+		state.ready[playerID] = struct{}{}
+	} else {
+		delete(state.ready, playerID)
+	}
 }
 
 func (u *sessionUpdater) setPlayerVote(
