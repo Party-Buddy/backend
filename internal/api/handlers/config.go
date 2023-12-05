@@ -34,5 +34,8 @@ func ConfigureMux(pool *db.DBPool, manager *session.Manager) *mux.Router {
 	r.Handle("/api/v1/session", middleware.AuthMiddleware(
 		managerMid.Middleware(SessionCreateHandler{}))).Methods(http.MethodPost)
 
+	r.Handle("/api/v1/games/{game-id}", middleware.AuthMiddleware(
+		GetGameHandler{})).Methods(http.MethodGet)
+
 	return r
 }

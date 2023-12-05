@@ -11,13 +11,13 @@ type Validator interface {
 }
 
 func NewValidationFactory() *valgo.ValidationFactory {
+	locales := make(map[string]*valgo.Locale)
+	locales["en"] = &valgo.Locale{
+		ErrorKeyFieldSet: "{{title}} should be set",
+	}
 	return valgo.Factory(valgo.FactoryOptions{
 		LocaleCodeDefault: "en",
-		Locales: map[string]*valgo.Locale{
-			"en": {
-				ErrorKeyFieldSet: "{{title}} should be set",
-			},
-		},
+		Locales:           locales,
 	})
 }
 

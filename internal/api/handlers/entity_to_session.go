@@ -32,7 +32,7 @@ func gameIDToSessionGame(ctx context.Context, tx pgx.Tx, gameID uuid.UUID) (sess
 		return session.Game{}, api.ErrorFromConverters{
 			ApiError:   api.Errorf(api.ErrInternal, ""),
 			StatusCode: http.StatusInternalServerError,
-			LogMessage: fmt.Sprintf("failed to get game by id: %s", err),
+			LogMessage: fmt.Sprintf("failed to get tasks for game with id %v with err: %v", gameID, err),
 		}
 	}
 	tasks := make([]session.Task, len(taskEntities))

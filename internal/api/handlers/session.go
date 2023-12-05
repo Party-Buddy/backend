@@ -127,7 +127,7 @@ func (sch SessionCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		var dto *api.Error
+		var dto api.Error
 		errors.As(err, &dto)
 		_ = encoder.Encode(dto)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, dto)
@@ -170,7 +170,7 @@ func handlePublicReq(w http.ResponseWriter, r *http.Request, publicReq schemas.P
 
 	game, err := gameIDToSessionGame(r.Context(), tx, *publicReq.GameID)
 	if err != nil {
-		var errConv *api.ErrorFromConverters
+		var errConv api.ErrorFromConverters
 		errors.As(err, &errConv)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, errConv)
 		w.Header().Set("Content-Type", "application/json")
@@ -220,7 +220,7 @@ func handlePrivateReq(w http.ResponseWriter, r *http.Request, privateReq schemas
 
 	game, imgResps, err := toSessionGame(r.Context(), tx, authInfo.ID, *privateReq.Game)
 	if err != nil {
-		var errConv *api.ErrorFromConverters
+		var errConv api.ErrorFromConverters
 		errors.As(err, &errConv)
 		log.Printf("request: %v %s -> err: %v", r.Method, r.URL, errConv)
 		w.Header().Set("Content-Type", "application/json")

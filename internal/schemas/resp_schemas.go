@@ -1,6 +1,9 @@
 package schemas
 
-import "time"
+import (
+	"github.com/google/uuid"
+	"time"
+)
 
 type BaseGameInfo struct {
 	Name        string    `json:"name"`
@@ -53,4 +56,19 @@ type GameDetails struct {
 	BaseGameInfo
 
 	Tasks []BaseTaskWithImg `json:"tasks"`
+}
+
+type BaseTaskWithImgAndID struct {
+	BaseTaskWithImg
+
+	ID          uuid.UUID `json:"id"`
+	LastUpdated time.Time `json:"last-updated"`
+}
+
+type IDGameInfo struct {
+	BaseGameInfo
+
+	ID uuid.UUID `json:"id"`
+
+	Tasks []BaseTaskWithImgAndID `json:"tasks"`
 }
