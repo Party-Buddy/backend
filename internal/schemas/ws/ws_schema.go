@@ -491,7 +491,7 @@ type MessageJoined struct {
 	BaseMessage
 
 	RefID    *MessageID          `json:"ref-id"`
-	PlayerID uuid.UUID           `json:"player-id"`
+	PlayerID uint32              `json:"player-id"`
 	Sid      uuid.UUID           `json:"session-id"`
 	Game     schemas.GameDetails `json:"game"`
 }
@@ -499,8 +499,8 @@ type MessageJoined struct {
 func (*MessageJoined) isRespMessage() {}
 
 type Player struct {
-	PlayerID uuid.UUID `json:"player-id"`
-	Nickname string    `json:"nickname"`
+	PlayerID uint32 `json:"player-id"`
+	Nickname string `json:"nickname"`
 }
 
 type MessageGameStatus struct {
@@ -563,9 +563,9 @@ type TaskOptionAnswer struct {
 func (*TaskOptionAnswer) isAnswer() {}
 
 type TaskPlayerScore struct {
-	PlayerID    uuid.UUID `json:"player-id"`
-	TaskPoints  uint32    `json:"task-points"`
-	TotalPoints uint32    `json:"total-points"`
+	PlayerID    uint32 `json:"player-id"`
+	TaskPoints  uint32 `json:"task-points"`
+	TotalPoints uint32 `json:"total-points"`
 }
 
 type MessageTaskEnd struct {
@@ -590,14 +590,14 @@ func (*MessageGameStart) isRespMessage() {}
 type MessageWaiting struct {
 	BaseMessage
 
-	Ready []uuid.UUID `json:"ready"`
+	Ready []uint32 `json:"ready"`
 }
 
 func (*MessageWaiting) isRespMessage() {}
 
 type GamePlayerScore struct {
-	PlayerID    uuid.UUID `json:"player-id"`
-	TotalPoints uint32    `json:"total-points"`
+	PlayerID    uint32 `json:"player-id"`
+	TotalPoints uint32 `json:"total-points"`
 }
 
 type MessageGameEnd struct {

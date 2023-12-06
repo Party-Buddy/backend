@@ -4,15 +4,13 @@ import (
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
 	"party-buddy/internal/ws/utils"
-
-	"github.com/google/uuid"
 )
 
 func ToMessageWaiting(m session.MsgWaiting) ws.MessageWaiting {
-	var ready []uuid.UUID
+	var ready []uint32
 
 	for playerID := range m.PlayersReady {
-		ready = append(ready, playerID.UUID())
+		ready = append(ready, uint32(playerID))
 	}
 
 	return ws.MessageWaiting{

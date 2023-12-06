@@ -16,7 +16,7 @@ func ToMessageTaskEnd(m session.MsgTaskEnd) ws.MessageTaskEnd {
 
 	for _, score := range m.Scoreboard.Scores() {
 		msg.Scoreboard = append(msg.Scoreboard, ws.TaskPlayerScore{
-			PlayerID:    score.PlayerID.UUID(),
+			PlayerID:    uint32(score.PlayerID),
 			TaskPoints:  uint32(m.Winners[score.PlayerID]),
 			TotalPoints: uint32(score.Score),
 		})

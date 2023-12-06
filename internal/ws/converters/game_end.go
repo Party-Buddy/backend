@@ -11,7 +11,7 @@ func ToMessageGameEnd(m session.MsgGameEnd) ws.MessageGameEnd {
 
 	for _, score := range m.Scoreboard.Scores() {
 		scores = append(scores, ws.GamePlayerScore{
-			PlayerID:    score.PlayerID.UUID(),
+			PlayerID:    uint32(score.PlayerID),
 			TotalPoints: uint32(score.Score),
 		})
 	}

@@ -61,6 +61,21 @@ func (s *UnsafeStorage) newInviteCode() (InviteCode, error) {
 	}
 }
 
+func (s *UnsafeStorage) newPlayerID(sid SessionID) PlayerID {
+	session := s.sessions[sid]
+	if session == nil {
+		return PlayerID(0)
+	}
+
+	for id := session.nextPlayerID; ; id++ {
+		if _, ok := session.players[id]; !ok {
+			session.nextPlayerID = id + 1
+
+			return id
+		}
+	}
+}
+
 // SessionExists returns `true` if a session with the given `sid` exists.
 func (s *UnsafeStorage) SessionExists(sid SessionID) bool {
 	return s.sessions[sid] != nil
@@ -346,7 +361,7 @@ func (s *UnsafeStorage) addPlayer(
 		return player, fmt.Errorf("client %v is already a player: %+v", clientID, player)
 	}
 
-	playerID := NewPlayerID()
+	playerID := s.newPlayerID(sid)
 	player = Player{
 		ID:       playerID,
 		ClientID: clientID,
@@ -363,12 +378,12 @@ func (s *UnsafeStorage) addPlayer(
 func (s *UnsafeStorage) removePlayer(sid SessionID, clientID ClientID) (PlayerID, bool) {
 	session := s.sessions[sid]
 	if session == nil {
-		return PlayerID{}, false
+		return 0, false
 	}
 
 	playerID, ok := session.clients[clientID]
 	if !ok {
-		return PlayerID{}, false
+		return 0, false
 	}
 
 	delete(session.players, playerID)
