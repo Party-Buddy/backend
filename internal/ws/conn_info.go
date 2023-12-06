@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cohesivestack/valgo"
 	"github.com/gorilla/websocket"
 	"log"
 	"party-buddy/internal/schemas/ws"
@@ -66,13 +67,13 @@ func NewConnInfo(
 	}
 }
 
-func (c *ConnInfo) StartReadAndWriteConn() {
+func (c *ConnInfo) StartReadAndWriteConn(f *valgo.ValidationFactory) {
 	c.stopRequested.Store(false)
 	servChan := make(chan session.ServerTx)
 	msgChan := make(chan ws.RespMessage)
 	c.msgToClientChan = msgChan
 	ctx, cancel := context.WithCancel(context.Background())
-	ctx = validate.NewContext(ctx, validate.NewValidationFactory())
+	ctx = validate.NewContext(ctx, f)
 	c.cancel = cancel
 	c.state = initialState{}
 	go c.runReader(ctx, servChan)
