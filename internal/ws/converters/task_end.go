@@ -24,27 +24,27 @@ func ToMessageTaskEnd(m session.MsgTaskEnd) ws.MessageTaskEnd {
 
 	for _, a := range m.Results {
 		switch t := m.Task.(type) {
-		case *session.ChoiceTask:
+		case session.ChoiceTask:
 			msg.Answers = append(msg.Answers, &ws.TaskOptionAnswer{
 				Value:       t.Options[a.Value.(session.ChoiceTaskAnswer)],
 				PlayerCount: uint16(a.Submissions),
 				Correct:     t.AnswerIdx == int(a.Value.(session.ChoiceTaskAnswer)),
 			})
 
-		case *session.CheckedTextTask:
+		case session.CheckedTextTask:
 			msg.Answers = append(msg.Answers, &ws.CheckedWordAnswer{
 				Value:       string(a.Value.(session.CheckedTextAnswer)),
 				PlayerCount: uint16(a.Submissions),
 				Correct:     t.Answer == string(a.Value.(session.CheckedTextAnswer)),
 			})
 
-		case *session.PhotoTask:
+		case session.PhotoTask:
 			msg.Answers = append(msg.Answers, &ws.PhotoAnswer{
 				Value: configuration.GenImgURI(a.Value.(session.PhotoTaskAnswer).UUID),
 				Votes: uint16(a.Votes),
 			})
 
-		case *session.TextTask:
+		case session.TextTask:
 			msg.Answers = append(msg.Answers, &ws.WordAnswer{
 				Value: string(a.Value.(session.TextTaskAnswer)),
 				Votes: uint16(a.Votes),

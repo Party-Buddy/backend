@@ -441,6 +441,15 @@ func ParseErrorToMessageError(err error) error {
 		}
 	}
 
+	var syntaxError *json.SyntaxError
+	if errors.As(err, &syntaxError) {
+		return &Error{
+			RefID:   nil,
+			Code:    ErrMalformedMsg,
+			Message: fmt.Sprintf("syntax error %s", syntaxError),
+		}
+	}
+
 	var decodeError *DecodeError
 	if errors.As(err, &decodeError) {
 		return &Error{

@@ -13,6 +13,7 @@ import (
 	"party-buddy/internal/schemas"
 	"party-buddy/internal/schemas/api"
 	"party-buddy/internal/session"
+	"party-buddy/internal/validate"
 	"party-buddy/internal/ws"
 )
 
@@ -88,7 +89,8 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	info := ws.NewConnInfo(manager, wsConn, session.ClientID(authInfo.ID), sid)
-	info.StartReadAndWriteConn(r.Context())
+	f, _ := validate.FromContext(r.Context())
+	info.StartReadAndWriteConn(f)
 	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())
 }
 

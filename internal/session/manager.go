@@ -233,7 +233,7 @@ func (m *Manager) JoinSession(
 		}
 	})
 
-	if err != nil {
+	if err == nil {
 		m.sendToUpdater(sid, &updateMsgPlayerAdded{
 			ctx:         ctx,
 			playerID:    player.ID,
