@@ -93,3 +93,11 @@ type MsgWaiting struct {
 }
 
 func (*MsgWaiting) isServerTx() {}
+
+type MsgGameEnd struct {
+	baseTx
+
+	Scoreboard Scoreboard
+}
+
+func (*MsgGameEnd) isServerTx() {}

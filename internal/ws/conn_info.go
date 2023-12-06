@@ -132,6 +132,10 @@ func (c *ConnInfo) runServeToWriterConverter(
 				waitingMsg := converters.ToMessageWaiting(*m)
 				msgChan <- &waitingMsg
 				c.state = awaitingPlayersState{}
+
+			case *session.MsgGameEnd:
+				gameEndMsg := converters.ToMessageGameEnd(*m)
+				msgChan <- &gameEndMsg
 			}
 		}
 	}
