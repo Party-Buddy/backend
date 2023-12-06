@@ -22,9 +22,9 @@ type (
 
 	// A PlayerID identifies a particular player in a session.
 	//
-	// It is generated randomly when a client joins and is only valid in the context of the session.
+	// It is generated when a client joins and is only valid in the context of the session.
 	// Unlike their [ClientID], the client's PlayerID is shared among other session players.
-	PlayerID uuid.UUID
+	PlayerID uint32
 
 	// A ClientID identifies a particular client.
 	// The ClientID is a secret value that is used for access control;
@@ -44,10 +44,6 @@ func (id ImageID) String() string {
 
 func (sid SessionID) UUID() uuid.UUID {
 	return uuid.UUID(sid)
-}
-
-func (id PlayerID) UUID() uuid.UUID {
-	return uuid.UUID(id)
 }
 
 func (id ClientID) UUID() uuid.UUID {
@@ -70,16 +66,8 @@ func (sid SessionID) String() string {
 	return sid.UUID().String()
 }
 
-func NewPlayerID() PlayerID {
-	uuid, err := uuid.NewRandom()
-	if err != nil {
-		panic(fmt.Sprintf("could not generate player id: %v", err))
-	}
-	return PlayerID(uuid)
-}
-
 func (id PlayerID) String() string {
-	return id.UUID().String()
+	return fmt.Sprintf("%d", uint32(id))
 }
 
 // An InviteCode is a short code used for session discovery.
@@ -122,6 +110,7 @@ type session struct {
 	id            SessionID
 	game          Game
 	players       map[PlayerID]Player
+	nextPlayerID  PlayerID
 	playersMax    int
 	clients       map[ClientID]PlayerID
 	bannedClients map[ClientID]struct{}

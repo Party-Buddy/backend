@@ -11,7 +11,7 @@ func ToMessageGameStatus(m session.MsgGameStatus) ws.MessageGameStatus {
 
 	for _, player := range m.Players {
 		players = append(players, ws.Player{
-			PlayerID: player.ID.UUID(),
+			PlayerID: uint32(player.ID),
 			Nickname: player.Nickname,
 		})
 	}
