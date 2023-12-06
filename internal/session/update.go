@@ -404,8 +404,7 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 		if s.hasNextTask(u.sid, state.taskIdx) {
 			u.changeStateTo(ctx, s, u.makeNextTaskStartedState(s, state))
 		} else {
-			// TODO: finish game
-			u.changeStateTo(ctx, s, nil)
+			u.finishGame(ctx, s, state)
 		}
 	}
 }
@@ -485,4 +484,17 @@ func (u *sessionUpdater) setPlayerVote(
 	vote OptionIdx,
 ) {
 	// TODO
+}
+
+// finishGame finishes the game normally.
+//
+// If you're looking for a way to close a session quickly, just do changeStateTo(..., nil).
+func (u *sessionUpdater) finishGame(ctx context.Context, s *UnsafeStorage, state *TaskEndedState) {
+	if !s.SessionExists(u.sid) {
+		// could've got closed already
+		return
+	}
+
+	u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameEnd(ctx, s.SessionScoreboard(u.sid)))
+	u.changeStateTo(ctx, s, nil)
 }

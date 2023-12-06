@@ -91,6 +91,13 @@ func (m *Manager) makeMsgTaskEnd(
 	}
 }
 
+func (m *Manager) makeMsgGameEnd(ctx context.Context, scoreboard Scoreboard) ServerTx {
+	return &MsgGameEnd{
+		baseTx:     baseTx{Ctx: ctx},
+		Scoreboard: scoreboard,
+	}
+}
+
 func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) ServerTx {
 	return &MsgGameStart{
 		baseTx:   baseTx{Ctx: ctx},

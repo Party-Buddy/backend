@@ -594,3 +594,16 @@ type MessageWaiting struct {
 }
 
 func (*MessageWaiting) isRespMessage() {}
+
+type GamePlayerScore struct {
+	PlayerID    uuid.UUID `json:"player-id"`
+	TotalPoints uint32    `json:"total-points"`
+}
+
+type MessageGameEnd struct {
+	BaseMessage
+
+	Scoreboard []GamePlayerScore `json:"scoreboard"`
+}
+
+func (*MessageGameEnd) isRespMessage() {}
