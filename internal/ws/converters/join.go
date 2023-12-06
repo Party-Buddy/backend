@@ -25,27 +25,29 @@ func ToSchemaTask(t session.Task) schemas.BaseTaskWithImg {
 	task := schemas.BaseTaskWithImg{}
 	task.Name = t.GetName()
 	task.Description = t.GetDescription()
-	task.ImgURI = configuration.GenImgURI(t.GetImageID().UUID)
+	if t.GetImageID().Valid {
+		task.ImgURI = configuration.GenImgURI(t.GetImageID().UUID)
+	}
 	task.Duration = schemas.PollDuration{Kind: schemas.Fixed, Secs: uint16(t.GetTaskDuration().Seconds())}
 	switch t := t.(type) {
-	case *session.PhotoTask:
+	case session.PhotoTask:
 		{
 			task.Type = schemas.Photo
 			task.PollDuration = ToPollDuration(t.PollDuration)
 			return task
 		}
-	case *session.TextTask:
+	case session.TextTask:
 		{
 			task.Type = schemas.Text
 			task.PollDuration = ToPollDuration(t.PollDuration)
 			return task
 		}
-	case *session.CheckedTextTask:
+	case session.CheckedTextTask:
 		{
 			task.Type = schemas.CheckedText
 			return task
 		}
-	case *session.ChoiceTask:
+	case session.ChoiceTask:
 		{
 			task.Type = schemas.Choice
 			return task
@@ -65,7 +67,9 @@ func ToGameDetails(g session.Game) schemas.GameDetails {
 		tasks = append(tasks, ToSchemaTask(g.Tasks[i]))
 	}
 	game.Tasks = tasks
-	game.ImgURI = configuration.GenImgURI(g.ImageID.UUID)
+	if g.ImageID.Valid {
+		game.ImgURI = configuration.GenImgURI(g.ImageID.UUID)
+	}
 	return game
 }
 

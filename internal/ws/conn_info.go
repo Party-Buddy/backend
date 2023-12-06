@@ -8,6 +8,7 @@ import (
 	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
+	"party-buddy/internal/validate"
 	"party-buddy/internal/ws/converters"
 	"party-buddy/internal/ws/utils"
 	"sync/atomic"
@@ -65,18 +66,19 @@ func NewConnInfo(
 	}
 }
 
-func (c *ConnInfo) StartReadAndWriteConn(ctx context.Context) {
+func (c *ConnInfo) StartReadAndWriteConn() {
 	c.stopRequested.Store(false)
 	servChan := make(chan session.ServerTx)
 	msgChan := make(chan ws.RespMessage)
 	c.msgToClientChan = msgChan
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	ctx = validate.NewContext(ctx, validate.NewValidationFactory())
 	c.cancel = cancel
 	c.state = initialState{}
 	go c.runReader(ctx, servChan)
 	go c.runServeToWriterConverter(ctx, msgChan, servChan)
 	go c.runWriter(ctx, msgChan)
-	log.Printf("ConnInfo start serving for client: %v", c.client.UUID().String())
+	log.Printf("ConnInfo start serving for client: %s", c.client)
 }
 
 func (c *ConnInfo) runServeToWriterConverter(
@@ -179,7 +181,6 @@ func msgIDFromContext(ctx context.Context) *ws.MessageID {
 }
 
 func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
-	defer c.wsConn.Close()
 	for !c.stopRequested.Load() {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {

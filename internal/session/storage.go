@@ -366,6 +366,7 @@ func (s *UnsafeStorage) addPlayer(
 		ID:       playerID,
 		ClientID: clientID,
 		Nickname: nickname,
+		tx:       tx,
 	}
 	session.players[playerID] = player
 	session.clients[clientID] = playerID
