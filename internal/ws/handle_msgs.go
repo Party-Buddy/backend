@@ -7,27 +7,15 @@ import (
 	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
+	"party-buddy/internal/ws/converters"
 	"party-buddy/internal/ws/utils"
 )
 
 func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataChan session.TxChan) {
 	player, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, servDataChan)
 	if err != nil {
-		var errMsg ws.MessageError
-		switch {
-		case errors.Is(err, session.ErrNoSession):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrSessionExpired, "no such session")
-		case errors.Is(err, session.ErrGameInProgress):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrUnknownSession, "game in progress now, no clients accepted")
-		case errors.Is(err, session.ErrClientBanned):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrUnknownSession, "unknown session in request")
-		case errors.Is(err, session.ErrNicknameUsed):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrNicknameUsed, "nickname is already used")
-		case errors.Is(err, session.ErrLobbyFull):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrLobbyFull, "lobby is full")
-		default:
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal, "internal error occurred")
-		}
+		code, message := converters.ErrorCodeAndMessage(err)
+		errMsg := utils.GenMessageError(m.MsgID, code, message)
 		log.Printf("ConnInfo client: %s join session %s err: %v (code `%v`)",
 			c.client, c.sid, err, errMsg.Code)
 		c.msgToClientChan <- &errMsg
@@ -64,19 +52,17 @@ func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer
 		err = c.manager.UpdatePlayerAnswer(ctx, c.sid, *c.playerID, answer, *m.Ready, *m.TaskIdx)
 	}
 	if err != nil {
-		var errMsg ws.MessageError
+		var code ws.ErrorKind
+		var message string
+
 		switch {
-		case errors.Is(err, session.ErrNoSession):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrSessionExpired, "no such session")
-		case errors.Is(err, session.ErrNoPlayer):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrInternal,
-				fmt.Sprintf("client %s is not player with id %v in session", c.client, c.playerID.UUID().ID()))
-		case errors.Is(err, session.ErrNoTask):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrMalformedMsg,
-				fmt.Sprintf("no task with idx %v", *m.TaskIdx))
-		case errors.Is(err, session.ErrTypesTaskAndAnswerMismatch):
-			errMsg = utils.GenMessageError(m.MsgID, ws.ErrMalformedMsg, "provided answer type do not match task type")
+		case errors.Is(err, session.ErrTaskIndexOutOfBounds):
+			code, message = ws.ErrMalformedMsg, fmt.Sprintf("the task index %d is out of bounds", *m.TaskIdx)
+		default:
+			code, message = converters.ErrorCodeAndMessage(err)
 		}
+
+		errMsg := utils.GenMessageError(m.MsgID, code, message)
 		log.Printf("ConnInfo client: %s in session %s task answer err: %v (code `%v`)",
 			c.client, c.sid, err, errMsg.Code)
 		c.msgToClientChan <- &errMsg

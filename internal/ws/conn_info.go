@@ -91,32 +91,47 @@ func (c *ConnInfo) runServeToWriterConverter(
 			return
 
 		case msg := <-servChan:
-			{
-				if msg == nil {
-					c.stopRequested.Store(true)
-					return
-				}
-				// TODO: ServeTx -> RespMessage
-				// TODO: send converted msg to c.msgToClientChan
-				switch m := msg.(type) {
-				case *session.MsgJoined:
-					joinedMsg := converters.ToMessageJoined(*m)
-					refID := msgIDFromContext(m.Context())
-					joinedMsg.RefID = &refID
-					msgChan <- &joinedMsg
-					c.state = awaitingPlayersState{}
+			if msg == nil {
+				c.stopRequested.Store(true)
+				return
+			}
 
-				case *session.MsgTaskStart:
-					taskStartMsg := converters.ToMessageTaskStart(*m)
-					msgChan <- &taskStartMsg
-					c.state = taskStartedState{}
+			switch m := msg.(type) {
+			case *session.MsgError:
+				refID := msgIDFromContext(m.Context())
+				kind, errMsg := converters.ErrorCodeAndMessage(m.Inner)
+				errorMsg := utils.GenMessageError(refID, kind, errMsg)
+				msgChan <- &errorMsg
 
-				case *session.MsgTaskEnd:
-					taskEndMsg := converters.ToMessageTaskEnd(*m)
-					msgChan <- &taskEndMsg
-					c.state = taskEndedState{}
-				}
+			case *session.MsgJoined:
+				joinedMsg := converters.ToMessageJoined(*m)
+				joinedMsg.RefID = msgIDFromContext(m.Context())
+				msgChan <- &joinedMsg
+				c.state = awaitingPlayersState{}
 
+			case *session.MsgGameStatus:
+				gameStatusMsg := converters.ToMessageGameStatus(*m)
+				msgChan <- &gameStatusMsg
+
+			case *session.MsgTaskStart:
+				taskStartMsg := converters.ToMessageTaskStart(*m)
+				msgChan <- &taskStartMsg
+				c.state = taskStartedState{}
+
+			case *session.MsgTaskEnd:
+				taskEndMsg := converters.ToMessageTaskEnd(*m)
+				msgChan <- &taskEndMsg
+				c.state = taskEndedState{}
+
+			case *session.MsgGameStart:
+				gameStartMsg := converters.ToMessageGameStart(*m)
+				msgChan <- &gameStartMsg
+				c.state = gameStartedState{}
+
+			case *session.MsgWaiting:
+				waitingMsg := converters.ToMessageWaiting(*m)
+				msgChan <- &waitingMsg
+				c.state = awaitingPlayersState{}
 			}
 		}
 	}
@@ -152,8 +167,11 @@ type msgIDKeyType int
 
 var msgIDKey msgIDKeyType
 
-func msgIDFromContext(ctx context.Context) ws.MessageID {
-	return ctx.Value(msgIDKey).(ws.MessageID)
+func msgIDFromContext(ctx context.Context) *ws.MessageID {
+	if msgID, ok := ctx.Value(msgIDKey).(ws.MessageID); ok {
+		return &msgID
+	}
+	return nil
 }
 
 func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
@@ -188,7 +206,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 		if !c.state.isAllowedMsg(msg) {
 			id := msg.GetMsgID()
 			errMsg := utils.GenMessageError(&id, ws.ErrProtoViolation,
-				fmt.Sprintf("forbidden message for current state"))
+				fmt.Sprintf("the message is not allowed in the current state"))
 			log.Printf("ConnInfo client: %s in session %s err: %v (code `%v`) (state `%s`)",
 				c.client, c.sid, err, errMsg.Code, c.state.name())
 			c.msgToClientChan <- &errMsg
@@ -206,7 +224,6 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 			log.Printf("ConnInfo client: %s session %s handling message TaskAnswer", c.client, c.sid)
 			c.handleTaskAnswer(ctx, m)
 		}
-
 	}
 }
 
@@ -216,7 +233,6 @@ func properWSClose(wsConn *websocket.Conn) {
 	_ = wsConn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	time.Sleep(timeout)
 	_ = wsConn.Close()
-
 }
 
 // dispose is used for closing ws connection and related channels.

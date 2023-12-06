@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"time"
+
+	"golang.org/x/exp/maps"
 )
 
 func (m *Manager) makeMsgError(ctx context.Context, err error) ServerTx {
@@ -18,13 +20,19 @@ func (m *Manager) makeMsgJoined(
 	sid SessionID,
 	game *Game,
 ) ServerTx {
-	// TODO
-	return nil
+	return &MsgJoined{
+		baseTx:    baseTx{Ctx: ctx},
+		PlayerID:  playerID,
+		SessionID: sid,
+		Game:      game,
+	}
 }
 
 func (m *Manager) makeMsgGameStatus(ctx context.Context, players []Player) ServerTx {
-	// TODO
-	return nil
+	return &MsgGameStatus{
+		baseTx:  baseTx{Ctx: ctx},
+		Players: players,
+	}
 }
 
 func (m *Manager) makeMsgTaskStart(
@@ -84,11 +92,15 @@ func (m *Manager) makeMsgTaskEnd(
 }
 
 func (m *Manager) makeMsgGameStart(ctx context.Context, deadline time.Time) ServerTx {
-	// TODO
-	return nil
+	return &MsgGameStart{
+		baseTx:   baseTx{Ctx: ctx},
+		Deadline: deadline,
+	}
 }
 
 func (m *Manager) makeMsgWaiting(ctx context.Context, playersReady map[PlayerID]struct{}) ServerTx {
-	// TODO
-	return nil
+	return &MsgWaiting{
+		baseTx:       baseTx{Ctx: ctx},
+		PlayersReady: maps.Clone(playersReady),
+	}
 }

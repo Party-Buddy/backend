@@ -33,12 +33,21 @@ func (*MsgError) isServerTx() {}
 
 type MsgJoined struct {
 	baseTx
+
 	PlayerID  PlayerID
 	SessionID SessionID
 	Game      *Game
 }
 
 func (*MsgJoined) isServerTx() {}
+
+type MsgGameStatus struct {
+	baseTx
+
+	Players []Player
+}
+
+func (*MsgGameStatus) isServerTx() {}
 
 type MsgTaskStart struct {
 	baseTx
@@ -68,3 +77,19 @@ type MsgTaskEnd struct {
 }
 
 func (*MsgTaskEnd) isServerTx() {}
+
+type MsgGameStart struct {
+	baseTx
+
+	Deadline time.Time
+}
+
+func (*MsgGameStart) isServerTx() {}
+
+type MsgWaiting struct {
+	baseTx
+
+	PlayersReady map[PlayerID]struct{}
+}
+
+func (*MsgWaiting) isServerTx() {}

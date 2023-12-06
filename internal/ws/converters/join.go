@@ -73,7 +73,7 @@ func ToMessageJoined(m session.MsgJoined) ws.MessageJoined {
 	msg := ws.MessageJoined{}
 	msg.BaseMessage = utils.GenBaseMessage(&ws.MsgKindJoined)
 	msg.Sid = m.SessionID.UUID()
-	msg.PlayerID = m.PlayerID.UUID().ID()
+	msg.PlayerID = m.PlayerID.UUID()
 	msg.Game = ToGameDetails(*m.Game)
 	return msg
 }

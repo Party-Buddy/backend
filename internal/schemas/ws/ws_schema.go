@@ -112,6 +112,7 @@ var (
 	ErrInternal       ErrorKind = "internal"
 	ErrMalformedMsg   ErrorKind = "malformed-msg"
 	ErrProtoViolation ErrorKind = "proto-violation"
+	ErrReconnected    ErrorKind = "reconnected"
 )
 
 // JoinErrorKind codes
@@ -490,12 +491,25 @@ type MessageJoined struct {
 	BaseMessage
 
 	RefID    *MessageID          `json:"ref-id"`
-	PlayerID uint32              `json:"player-id"`
+	PlayerID uuid.UUID           `json:"player-id"`
 	Sid      uuid.UUID           `json:"session-id"`
 	Game     schemas.GameDetails `json:"game"`
 }
 
 func (*MessageJoined) isRespMessage() {}
+
+type Player struct {
+	PlayerID uuid.UUID `json:"player-id"`
+	Nickname string    `json:"nickname"`
+}
+
+type MessageGameStatus struct {
+	BaseMessage
+
+	Players []Player `json:"players"`
+}
+
+func (*MessageGameStatus) isRespMessage() {}
 
 type MessageTaskStart struct {
 	BaseMessage
@@ -564,3 +578,19 @@ type MessageTaskEnd struct {
 }
 
 func (*MessageTaskEnd) isRespMessage() {}
+
+type MessageGameStart struct {
+	BaseMessage
+
+	Deadline time.Time `json:"deadline"`
+}
+
+func (*MessageGameStart) isRespMessage() {}
+
+type MessageWaiting struct {
+	BaseMessage
+
+	Ready []uuid.UUID `json:"ready"`
+}
+
+func (*MessageWaiting) isRespMessage() {}
