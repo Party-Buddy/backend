@@ -69,6 +69,8 @@ func (s *UnsafeStorage) newPlayerID(sid SessionID) PlayerID {
 
 	for id := session.nextPlayerID; ; id++ {
 		if _, ok := session.players[id]; !ok {
+			session.nextPlayerID = id + 1
+
 			return id
 		}
 	}
