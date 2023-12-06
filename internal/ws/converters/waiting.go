@@ -7,7 +7,7 @@ import (
 )
 
 func ToMessageWaiting(m session.MsgWaiting) ws.MessageWaiting {
-	var ready []uint32
+	ready := make([]uint32, 0)
 
 	for playerID := range m.PlayersReady {
 		ready = append(ready, uint32(playerID))
