@@ -19,12 +19,14 @@ func (m *Manager) makeMsgJoined(
 	playerID PlayerID,
 	sid SessionID,
 	game *Game,
+	maxPlayers int,
 ) ServerTx {
 	return &MsgJoined{
-		baseTx:    baseTx{Ctx: ctx},
-		PlayerID:  playerID,
-		SessionID: sid,
-		Game:      game,
+		baseTx:     baseTx{Ctx: ctx},
+		PlayerID:   playerID,
+		SessionID:  sid,
+		Game:       game,
+		MaxPlayers: maxPlayers,
 	}
 }
 

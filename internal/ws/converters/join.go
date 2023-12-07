@@ -62,7 +62,7 @@ func ToGameDetails(g session.Game) schemas.GameDetails {
 	game.Name = g.Name
 	game.Description = g.Description
 	game.DateChanged = g.DateChanged
-	tasks := make([]schemas.BaseTaskWithImg, len(g.Tasks))
+	tasks := make([]schemas.BaseTaskWithImg, 0, len(g.Tasks))
 	for i := 0; i < len(g.Tasks); i++ {
 		tasks = append(tasks, ToSchemaTask(g.Tasks[i]))
 	}
@@ -79,5 +79,6 @@ func ToMessageJoined(m session.MsgJoined) ws.MessageJoined {
 	msg.Sid = m.SessionID.UUID()
 	msg.PlayerID = uint32(m.PlayerID)
 	msg.Game = ToGameDetails(*m.Game)
+	msg.MaxPlayers = uint8(m.MaxPlayers)
 	return msg
 }

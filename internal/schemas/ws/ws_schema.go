@@ -499,10 +499,11 @@ type RespMessage interface {
 type MessageJoined struct {
 	BaseMessage
 
-	RefID    *MessageID          `json:"ref-id"`
-	PlayerID uint32              `json:"player-id"`
-	Sid      uuid.UUID           `json:"session-id"`
-	Game     schemas.GameDetails `json:"game"`
+	RefID      *MessageID          `json:"ref-id"`
+	PlayerID   uint32              `json:"player-id"`
+	Sid        uuid.UUID           `json:"session-id"`
+	Game       schemas.GameDetails `json:"game"`
+	MaxPlayers uint8               `json:"max-players"`
 }
 
 func (*MessageJoined) isRespMessage() {}
