@@ -34,9 +34,10 @@ func (*MsgError) isServerTx() {}
 type MsgJoined struct {
 	baseTx
 
-	PlayerID  PlayerID
-	SessionID SessionID
-	Game      *Game
+	PlayerID   PlayerID
+	SessionID  SessionID
+	Game       *Game
+	MaxPlayers int
 }
 
 func (*MsgJoined) isServerTx() {}

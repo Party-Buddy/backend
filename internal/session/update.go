@@ -126,8 +126,9 @@ func (u *sessionUpdater) playerAdded(
 		}
 	}
 
-	game, _ := s.SessionGame(u.sid)
-	joined := u.m.makeMsgJoined(ctx, player.ID, u.sid, &game)
+	session, _ := s.sessionByID(u.sid)
+	game := session.game
+	joined := u.m.makeMsgJoined(ctx, player.ID, u.sid, &game, session.playersMax)
 	u.m.sendToPlayer(player.tx, joined)
 
 	gameStatus := u.m.makeMsgGameStatus(ctx, s.Players(u.sid))
