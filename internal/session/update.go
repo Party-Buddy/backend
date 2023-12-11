@@ -123,10 +123,10 @@ func (u *sessionUpdater) playerAdded(
 	}
 
 	if state, ok := state.(*AwaitingPlayersState); ok && state.owner == player.ClientID {
+		u.log.Printf("the owner %s has joined the session", state.owner)
+
 		// the owner has at last joined the session
-		if !u.deadline.Stop() {
-			<-u.deadline.C
-		}
+		u.deadline.Stop()
 	}
 
 	session, _ := s.sessionByID(u.sid)
@@ -202,6 +202,8 @@ func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, pla
 		return
 	}
 
+	// TODO: close the session if there aren't any players left
+
 	u.m.closePlayerTx(s, u.sid, playerID)
 	s.removePlayer(u.sid, player.ClientID)
 
@@ -235,9 +237,7 @@ func (u *sessionUpdater) changeStateTo(
 	s *UnsafeStorage,
 	nextState State,
 ) {
-	if !u.deadline.Stop() {
-		<-u.deadline.C
-	}
+	u.deadline.Stop()
 
 	if nextState == nil {
 		err := u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
