@@ -11,7 +11,7 @@ func ToMessageTaskStart(m session.MsgTaskStart) ws.MessageTaskStart {
 	msg := ws.MessageTaskStart{
 		BaseMessage: utils.GenBaseMessage(&ws.MsgKindTaskStart),
 		TaskIdx:     uint8(m.TaskIdx),
-		Deadline:    m.Deadline,
+		Deadline:    ws.Time(m.Deadline),
 	}
 	if m.Options != nil {
 		msg.Options = m.Options

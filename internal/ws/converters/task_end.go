@@ -11,7 +11,7 @@ func ToMessageTaskEnd(m session.MsgTaskEnd) ws.MessageTaskEnd {
 	msg := ws.MessageTaskEnd{
 		BaseMessage: utils.GenBaseMessage(&ws.MsgKindTaskEnd),
 		TaskIdx:     uint8(m.TaskIdx),
-		Deadline:    m.Deadline,
+		Deadline:    ws.Time(m.Deadline),
 	}
 
 	for _, score := range m.Scoreboard.Scores() {

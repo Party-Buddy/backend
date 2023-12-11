@@ -10,6 +10,6 @@ func ToMessageGameStart(m session.MsgGameStart) ws.MessageGameStart {
 	return ws.MessageGameStart{
 		BaseMessage: utils.GenBaseMessage(&ws.MsgKindGameStart),
 		// TODO: time delay compensation
-		Deadline: m.Deadline,
+		Deadline: ws.Time(m.Deadline),
 	}
 }

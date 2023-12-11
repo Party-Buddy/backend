@@ -524,8 +524,8 @@ func (*MessageGameStatus) isRespMessage() {}
 type MessageTaskStart struct {
 	BaseMessage
 
-	TaskIdx  uint8     `json:"task-idx"`
-	Deadline time.Time `json:"deadline"`
+	TaskIdx  uint8 `json:"task-idx"`
+	Deadline Time  `json:"deadline"`
 
 	Options *[]string `json:"options,omitempty"`
 
@@ -582,7 +582,7 @@ type MessageTaskEnd struct {
 	BaseMessage
 
 	TaskIdx    uint8             `json:"task-idx"`
-	Deadline   time.Time         `json:"deadline"`
+	Deadline   Time              `json:"deadline"`
 	Scoreboard []TaskPlayerScore `json:"scoreboard"`
 	Answers    []Answer          `json:"answers"`
 }
@@ -592,7 +592,7 @@ func (*MessageTaskEnd) isRespMessage() {}
 type MessageGameStart struct {
 	BaseMessage
 
-	Deadline time.Time `json:"deadline"`
+	Deadline Time `json:"deadline"`
 }
 
 func (*MessageGameStart) isRespMessage() {}
