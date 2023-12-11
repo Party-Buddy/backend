@@ -26,6 +26,24 @@ func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataCh
 	c.playerID = &player.ID
 }
 
+func (c *ConnInfo) handleReady(ctx context.Context, m *ws.MessageReady) {
+	if c.playerID == nil {
+		log.Panicf("ConnInfo client: %s is not part of the session %s", c.client, c.sid)
+		return
+	}
+
+	err := c.manager.SetPlayerReady(ctx, c.sid, *c.playerID, *m.Ready)
+	if err != nil {
+		code, message := converters.ErrorCodeAndMessage(err)
+		errMsg := utils.GenMessageError(m.MsgID, code, message)
+		log.Printf("ConnInfo client: %s in session %s ready err: %s (code `%s`)",
+			c.client, c.sid, err, errMsg.Code)
+		c.msgToClientChan <- &errMsg
+
+		c.dispose(ctx)
+	}
+}
+
 func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer) {
 	if c.playerID == nil {
 		log.Printf("ConnInfo client: %s not joined the session %s", c.client, c.sid)

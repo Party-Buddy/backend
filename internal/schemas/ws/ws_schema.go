@@ -179,13 +179,13 @@ func (m *MessageJoin) Validate(ctx context.Context) *valgo.Validation {
 type MessageReady struct {
 	BaseMessage
 
-	// TODO
+	Ready *bool `json:"ready"`
 }
 
 func (m *MessageReady) Validate(ctx context.Context) *valgo.Validation {
-	f, _ := validate.FromContext(ctx)
-	// TODO
-	return f.New()
+	return m.BaseMessage.Validate(ctx).
+		Is(validate.FieldValue(m.Ready, "ready", "ready").Set()).
+		Is(valgo.StringP(m.Kind, "kind", "kind").EqualTo(MsgKindReady))
 }
 
 type MessageKick struct {

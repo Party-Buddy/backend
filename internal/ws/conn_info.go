@@ -226,6 +226,10 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 			log.Printf("ConnInfo client: %s session %s handling message Join", c.client, c.sid)
 			c.handleJoin(ctx, m, servDataChan)
 
+		case *ws.MessageReady:
+			log.Printf("ConnInfo client: %s session %s handling message Ready", c.client, c.sid)
+			c.handleReady(ctx, m)
+
 		case *ws.MessageTaskAnswer:
 			log.Printf("ConnInfo client: %s session %s handling message TaskAnswer", c.client, c.sid)
 			c.handleTaskAnswer(ctx, m)
