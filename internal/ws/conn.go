@@ -4,19 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cohesivestack/valgo"
-	"github.com/gorilla/websocket"
 	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
 	"party-buddy/internal/validate"
 	"party-buddy/internal/ws/converters"
 	"party-buddy/internal/ws/utils"
+	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/cohesivestack/valgo"
+	"github.com/gorilla/websocket"
 )
 
-type ConnInfo struct {
+type Conn struct {
 	manager *session.Manager
 
 	// wsConn is a WebSocket (ws) connection
@@ -48,26 +50,57 @@ type ConnInfo struct {
 	// servDataChan here for closing
 	servDataChan session.TxChan
 
+	mainLog   *log.Logger
+	readerLog *log.Logger
+	writerLog *log.Logger
+	serverLog *log.Logger
+
 	state sessionState
 }
 
-func NewConnInfo(
+func logPrefix(sid session.SessionID, clientID session.ClientID, playerID *session.PlayerID, sub string) string {
+	var prefix strings.Builder
+
+	fmt.Fprintf(&prefix, "ws.Conn(sid %s, client %s", sid, clientID)
+	if playerID != nil {
+		fmt.Fprintf(&prefix, ", player %s", *playerID)
+	}
+	prefix.WriteString("): ")
+
+	if sub != "" {
+		fmt.Fprintf(&prefix, "%s: ", sub)
+	}
+
+	return prefix.String()
+}
+
+func NewConn(
+	parentLogger *log.Logger,
 	manager *session.Manager,
 	wsConn *websocket.Conn,
 	clientID session.ClientID,
-	sid session.SessionID) *ConnInfo {
+	sid session.SessionID,
+) *Conn {
+	mainLog := log.New(parentLogger.Writer(), logPrefix(sid, clientID, nil, ""), parentLogger.Flags())
+	readerLog := log.New(mainLog.Writer(), logPrefix(sid, clientID, nil, "reader"), mainLog.Flags())
+	writerLog := log.New(mainLog.Writer(), logPrefix(sid, clientID, nil, "writer"), mainLog.Flags())
+	serverLog := log.New(mainLog.Writer(), logPrefix(sid, clientID, nil, "mgr-rx"), mainLog.Flags())
 
-	return &ConnInfo{
+	return &Conn{
 		manager:       manager,
 		wsConn:        wsConn,
 		client:        clientID,
 		sid:           sid,
 		msgID:         atomic.Uint32{},
 		stopRequested: atomic.Bool{},
+		mainLog:       mainLog,
+		readerLog:     readerLog,
+		writerLog:     writerLog,
+		serverLog:     serverLog,
 	}
 }
 
-func (c *ConnInfo) StartReadAndWriteConn(f *valgo.ValidationFactory) {
+func (c *Conn) StartReadAndWriteConn(f *valgo.ValidationFactory) {
 	c.stopRequested.Store(false)
 	servChan := make(chan session.ServerTx)
 	msgChan := make(chan ws.RespMessage)
@@ -79,14 +112,27 @@ func (c *ConnInfo) StartReadAndWriteConn(f *valgo.ValidationFactory) {
 	go c.runReader(ctx, servChan)
 	go c.runServeToWriterConverter(ctx, msgChan, servChan)
 	go c.runWriter(ctx, msgChan)
-	log.Printf("ConnInfo start serving for client: %s", c.client)
+	c.mainLog.Println("started")
 }
 
-func (c *ConnInfo) runServeToWriterConverter(
+func (c *Conn) setPlayerID(playerID session.PlayerID) {
+	c.playerID = &playerID
+	c.mainLog.SetPrefix(logPrefix(c.sid, c.client, c.playerID, ""))
+	c.readerLog.SetPrefix(logPrefix(c.sid, c.client, c.playerID, "reader"))
+	c.writerLog.SetPrefix(logPrefix(c.sid, c.client, c.playerID, "writer"))
+	c.serverLog.SetPrefix(logPrefix(c.sid, c.client, c.playerID, "mgr-rx"))
+}
+
+func (c *Conn) runServeToWriterConverter(
 	ctx context.Context,
 	msgChan chan<- ws.RespMessage,
-	servChan <-chan session.ServerTx) {
-	defer close(msgChan)
+	servChan <-chan session.ServerTx,
+) {
+	defer func() {
+		c.serverLog.Println("closing the writer channel")
+		close(msgChan)
+		c.serverLog.Println("stopping")
+	}()
 
 	for !c.stopRequested.Load() {
 		select {
@@ -95,9 +141,12 @@ func (c *ConnInfo) runServeToWriterConverter(
 
 		case msg := <-servChan:
 			if msg == nil {
+				c.serverLog.Println("the server channel has been closed, stopping")
 				c.stopRequested.Store(true)
 				return
 			}
+
+			c.serverLog.Printf("handling %T received via the server channel", msg)
 
 			switch m := msg.(type) {
 			case *session.MsgError:
@@ -144,27 +193,37 @@ func (c *ConnInfo) runServeToWriterConverter(
 	}
 }
 
-func (c *ConnInfo) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
-	defer properWSClose(c.wsConn)
+func (c *Conn) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
+	defer func() {
+		c.writerLog.Println("stopping")
+		properWSClose(c.wsConn)
+	}()
+
 	for !c.stopRequested.Load() {
 		select {
 		case <-ctx.Done():
 			return
 
 		case msg := <-msgChan:
-			{
-				if msg == nil {
-					c.cancel()
-					return
-				}
+			if msg == nil {
+				c.writerLog.Println("the writer channel has been closed, canceling the context")
+				c.cancel()
+				return
+			}
 
-				msg.SetMsgID(ws.MessageID(c.nextMsgID()))
-				_ = c.wsConn.WriteJSON(msg)
+			msgID := ws.MessageID(c.nextMsgID())
+			msg.SetMsgID(msgID)
 
-				if c.stopRequested.Load() {
-					c.cancel()
-					return
-				}
+			c.writerLog.Printf("sending `%s` to the client (msg-id %d)", msg.GetKind(), msgID)
+			err := c.wsConn.WriteJSON(msg)
+
+			if err != nil {
+				c.writerLog.Printf("encountered an error while sending a message: %s", err)
+			}
+
+			if c.stopRequested.Load() {
+				c.cancel()
+				return
 			}
 		}
 	}
@@ -181,11 +240,11 @@ func msgIDFromContext(ctx context.Context) *ws.MessageID {
 	return nil
 }
 
-func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
+func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
 	for !c.stopRequested.Load() {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
-			log.Printf("ConnInfo client: %s err: %v", c.client, err)
+			c.readerLog.Printf("ReadMessage failed: %s", err)
 
 			if !c.stopRequested.Load() {
 				c.dispose(ctx)
@@ -201,8 +260,7 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 				BaseMessage: utils.GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
 			}
-			log.Printf("ConnInfo client: %s session %s parse message err: %v (code `%v`)",
-				c.client, c.sid, errDto.Message, errDto.Code)
+			c.readerLog.Printf("ParseMessage failed: %s (code `%s`)", err, errDto.Code)
 			c.msgToClientChan <- &rspMessage
 
 			c.dispose(ctx)
@@ -212,26 +270,28 @@ func (c *ConnInfo) runReader(ctx context.Context, servDataChan session.TxChan) {
 		if !c.state.isAllowedMsg(msg) {
 			id := msg.GetMsgID()
 			errMsg := utils.GenMessageError(&id, ws.ErrProtoViolation,
-				fmt.Sprintf("the message is not allowed in the current state"))
-			log.Printf("ConnInfo client: %s in session %s err: %v (code `%v`) (state `%s`)",
-				c.client, c.sid, err, errMsg.Code, c.state.name())
+				fmt.Sprintf("the message `%s` is not allowed in the current state", msg.GetKind()))
+			c.readerLog.Printf("received a message `%s`: not allowed in the current state `%s` (error code `%v`)",
+				msg.GetKind(), c.state.name(), errMsg.Code)
 			c.msgToClientChan <- &errMsg
+
 			c.dispose(ctx)
 			return
 		}
+
 		ctx = context.WithValue(ctx, msgIDKey, msg.GetMsgID())
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:
-			log.Printf("ConnInfo client: %s session %s handling message Join", c.client, c.sid)
+			c.readerLog.Println("handling message Join")
 			c.handleJoin(ctx, m, servDataChan)
 
 		case *ws.MessageReady:
-			log.Printf("ConnInfo client: %s session %s handling message Ready", c.client, c.sid)
+			c.readerLog.Println("handling message Ready")
 			c.handleReady(ctx, m)
 
 		case *ws.MessageTaskAnswer:
-			log.Printf("ConnInfo client: %s session %s handling message TaskAnswer", c.client, c.sid)
+			c.readerLog.Println("handling message TaskAnswer")
 			c.handleTaskAnswer(ctx, m)
 		}
 	}
@@ -251,19 +311,20 @@ func properWSClose(wsConn *websocket.Conn) {
 //  2. reader call dispose and client had joined the session
 //
 // Disconnecting because of server initiative is handled in runServeToWriterConverter
-func (c *ConnInfo) dispose(ctx context.Context) {
-	log.Printf("ConnInfo client: %s disconnecting", c.client)
+func (c *Conn) dispose(ctx context.Context) {
+	c.mainLog.Println("disconnecting")
 	c.stopRequested.Store(true)
 	if c.playerID != nil { // playerID indicates that client has already joined
 		// Here we are asking manager to disconnect us
-		log.Printf("ConnInfo client: %s player: %s request disconnection from manager", c.client, c.playerID)
+		c.mainLog.Printf("removing the player from the session")
 		c.manager.RemovePlayer(ctx, c.sid, *c.playerID)
 	} else {
 		// Manager knows nothing about client, so we just stop threads
+		c.mainLog.Printf("canceling the context")
 		c.cancel()
 	}
 }
 
-func (c *ConnInfo) nextMsgID() uint32 {
+func (c *Conn) nextMsgID() uint32 {
 	return c.msgID.Add(1)
 }

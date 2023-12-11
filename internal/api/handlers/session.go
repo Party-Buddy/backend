@@ -88,7 +88,7 @@ func (sch SessionConnectHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	info := ws.NewConnInfo(manager, wsConn, session.ClientID(authInfo.ID), sid)
+	info := ws.NewConn(log.Default(), manager, wsConn, session.ClientID(authInfo.ID), sid)
 	f, _ := validate.FromContext(r.Context())
 	info.StartReadAndWriteConn(f)
 	log.Printf("request: %v %v -> OK", r.Method, r.URL.String())

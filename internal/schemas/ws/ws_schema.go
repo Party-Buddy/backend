@@ -77,6 +77,10 @@ type BaseMessage struct {
 	Time  *Time        `json:"time"`
 }
 
+func (m *BaseMessage) GetKind() MessageKind {
+	return *m.Kind
+}
+
 func (m *BaseMessage) GetMsgID() MessageID {
 	return *m.MsgID
 }
@@ -97,8 +101,11 @@ func (m *BaseMessage) Validate(ctx context.Context) *valgo.Validation {
 // A RecvMessage is implemented by protocol messages that can be received from a client.
 type RecvMessage interface {
 	validate.Validator
-	isRecvMessage()
+
+	GetKind() MessageKind
 	GetMsgID() MessageID
+
+	isRecvMessage()
 }
 
 type ErrorKind string
@@ -493,6 +500,8 @@ func ParseErrorToMessageError(err error) error {
 
 type RespMessage interface {
 	isRespMessage()
+
+	GetKind() MessageKind
 	SetMsgID(id MessageID)
 }
 
