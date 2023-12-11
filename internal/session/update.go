@@ -81,8 +81,11 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 
 		case msg := <-u.rx:
 			if msg == nil {
+				u.log.Println("the updater channel has been closed, stopping")
 				return nil
 			}
+
+			u.log.Printf("handling %T", msg)
 
 			u.m.storage.Atomically(func(s *UnsafeStorage) {
 				switch msg := msg.(type) {
@@ -120,10 +123,10 @@ func (u *sessionUpdater) playerAdded(
 	}
 
 	if state, ok := state.(*AwaitingPlayersState); ok && state.owner == player.ClientID {
+		u.log.Printf("the owner %s has joined the session", state.owner)
+
 		// the owner has at last joined the session
-		if !u.deadline.Stop() {
-			<-u.deadline.C
-		}
+		u.deadline.Stop()
 	}
 
 	session, _ := s.sessionByID(u.sid)
@@ -199,6 +202,8 @@ func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, pla
 		return
 	}
 
+	// TODO: close the session if there aren't any players left
+
 	u.m.closePlayerTx(s, u.sid, playerID)
 	s.removePlayer(u.sid, player.ClientID)
 
@@ -232,9 +237,7 @@ func (u *sessionUpdater) changeStateTo(
 	s *UnsafeStorage,
 	nextState State,
 ) {
-	if !u.deadline.Stop() {
-		<-u.deadline.C
-	}
+	u.deadline.Stop()
 
 	if nextState == nil {
 		err := u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
@@ -248,9 +251,10 @@ func (u *sessionUpdater) changeStateTo(
 		return
 	}
 
+	u.log.Printf("switching state to %T", nextState)
 	u.deadline.Reset(nextState.Deadline().Sub(time.Now()))
 
-	switch state := nextState.(type) {
+	switch nextState := nextState.(type) {
 	case *AwaitingPlayersState:
 		// do nothing
 
@@ -258,9 +262,9 @@ func (u *sessionUpdater) changeStateTo(
 		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameStart(ctx, state.deadline))
 
 	case *TaskStartedState:
-		task := s.taskByIdx(u.sid, state.taskIdx)
+		task := s.taskByIdx(u.sid, nextState.taskIdx)
 		if task == nil {
-			u.log.Panicf("task %d not found", state.taskIdx)
+			u.log.Panicf("task %d not found", nextState.taskIdx)
 		}
 		switch task.(type) {
 		case PhotoTask:
@@ -274,7 +278,7 @@ func (u *sessionUpdater) changeStateTo(
 							p.ID, p.Nickname, p.ClientID, err)
 						return
 					}
-					state.answers[p.ID] = PhotoTaskAnswer(img)
+					nextState.answers[p.ID] = PhotoTaskAnswer(img)
 				})
 				if err != nil {
 					return err
@@ -294,12 +298,12 @@ func (u *sessionUpdater) changeStateTo(
 				return
 			}
 			s.ForEachPlayer(u.sid, func(p Player) {
-				u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, state.answers[p.ID]))
+				u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(ctx, nextState.taskIdx, nextState.deadline, task, nextState.answers[p.ID]))
 			})
 
 		default:
 			for _, tx := range s.PlayerTxs(u.sid) {
-				u.m.sendToPlayer(tx, u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, nil))
+				u.m.sendToPlayer(tx, u.m.makeMsgTaskStart(ctx, nextState.taskIdx, nextState.deadline, task, nil))
 			}
 		}
 
@@ -307,15 +311,15 @@ func (u *sessionUpdater) changeStateTo(
 		// TODO
 
 	case *TaskEndedState:
-		s.incrementScores(u.sid, state.winners)
+		s.incrementScores(u.sid, nextState.winners)
 		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgTaskEnd(
 			ctx,
-			state.taskIdx,
-			state.deadline,
-			s.taskByIdx(u.sid, state.taskIdx),
+			nextState.taskIdx,
+			nextState.deadline,
+			s.taskByIdx(u.sid, nextState.taskIdx),
 			s.SessionScoreboard(u.sid),
-			state.winners,
-			state.results,
+			nextState.winners,
+			nextState.results,
 		))
 	}
 

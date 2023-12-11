@@ -4,40 +4,63 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"party-buddy/internal/schemas/ws"
 	"party-buddy/internal/session"
 	"party-buddy/internal/ws/converters"
 	"party-buddy/internal/ws/utils"
 )
 
-func (c *ConnInfo) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataChan session.TxChan) {
+func (c *Conn) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataChan session.TxChan) {
 	player, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, servDataChan)
 	if err != nil {
 		code, message := converters.ErrorCodeAndMessage(err)
 		errMsg := utils.GenMessageError(m.MsgID, code, message)
-		log.Printf("ConnInfo client: %s join session %s err: %v (code `%v`)",
-			c.client, c.sid, err, errMsg.Code)
+		c.readerLog.Printf("the manager returned an error while processing the Join message: %s (code `%s`)",
+			err, errMsg.Code)
 		c.msgToClientChan <- &errMsg
 
 		c.dispose(ctx)
 		return
 	}
-	c.playerID = &player.ID
+	c.setPlayerID(player.ID)
 }
 
-func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer) {
+func (c *Conn) handleReady(ctx context.Context, m *ws.MessageReady) {
 	if c.playerID == nil {
-		log.Printf("ConnInfo client: %s not joined the session %s", c.client, c.sid)
+		code, message := ws.ErrInternal, "internal error"
+		errMsg := utils.GenMessageError(m.MsgID, code, message)
+		c.readerLog.Printf("the client has not yet joined the session (code `%s`)", code)
+		c.msgToClientChan <- &errMsg
+
 		c.dispose(ctx)
 		return
 	}
 
-	var err error
-	if m.Answer == nil {
-		err = c.manager.UpdatePlayerAnswer(ctx, c.sid, *c.playerID, nil, *m.Ready, *m.TaskIdx)
-	} else {
-		var answer session.TaskAnswer
+	err := c.manager.SetPlayerReady(ctx, c.sid, *c.playerID, *m.Ready)
+	if err != nil {
+		code, message := converters.ErrorCodeAndMessage(err)
+		errMsg := utils.GenMessageError(m.MsgID, code, message)
+		c.readerLog.Printf("the manager returned an error while processing the Ready message: %s (code `%s`)",
+			err, errMsg.Code)
+		c.msgToClientChan <- &errMsg
+
+		c.dispose(ctx)
+	}
+}
+
+func (c *Conn) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer) {
+	if c.playerID == nil {
+		code, message := ws.ErrInternal, "internal error"
+		errMsg := utils.GenMessageError(m.MsgID, code, message)
+		c.readerLog.Printf("the client has not yet joined the session (code `%s`)", code)
+		c.msgToClientChan <- &errMsg
+
+		c.dispose(ctx)
+		return
+	}
+
+	var answer session.TaskAnswer
+	if m.Answer != nil {
 		switch *m.Answer.Type {
 		case ws.Text:
 			answer = session.TextTaskAnswer(*m.Answer.Text)
@@ -46,11 +69,12 @@ func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer
 		case ws.Option:
 			answer = session.TextTaskAnswer(*m.Answer.Option)
 		default:
-			panic(fmt.Sprintf("unsupported answer type in ConnInfo with sid %s clientID %s playerID %s",
-				c.sid, c.client, *c.playerID))
+			c.readerLog.Panicf("unsupported answer type: %s", *m.Answer.Type)
 		}
-		err = c.manager.UpdatePlayerAnswer(ctx, c.sid, *c.playerID, answer, *m.Ready, *m.TaskIdx)
 	}
+
+	err := c.manager.UpdatePlayerAnswer(ctx, c.sid, *c.playerID, answer, *m.Ready, *m.TaskIdx)
+
 	if err != nil {
 		var code ws.ErrorKind
 		var message string
@@ -63,8 +87,8 @@ func (c *ConnInfo) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer
 		}
 
 		errMsg := utils.GenMessageError(m.MsgID, code, message)
-		log.Printf("ConnInfo client: %s in session %s task answer err: %v (code `%v`)",
-			c.client, c.sid, err, errMsg.Code)
+		c.readerLog.Printf("the manager returned an error while processing the TaskAnswer message: %s (code `%s`)",
+			err, errMsg.Code)
 		c.msgToClientChan <- &errMsg
 
 		c.dispose(ctx)

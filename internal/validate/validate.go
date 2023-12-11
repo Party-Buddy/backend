@@ -13,7 +13,7 @@ type Validator interface {
 func NewValidationFactory() *valgo.ValidationFactory {
 	locales := make(map[string]*valgo.Locale)
 	locales["en"] = &valgo.Locale{
-		ErrorKeyFieldSet: "{{title}} should be set",
+		ErrorKeyFieldSet: "{{name}} must be provided",
 	}
 	return valgo.Factory(valgo.FactoryOptions{
 		LocaleCodeDefault: "en",
@@ -36,18 +36,19 @@ func FromContext(ctx context.Context) (*valgo.ValidationFactory, bool) {
 
 const ErrorKeyFieldSet = "pb/field_set"
 
-type ValidatorField struct {
+type ValidatorField[T any] struct {
 	context *valgo.ValidatorContext
 }
 
-func (v *ValidatorField) Context() *valgo.ValidatorContext {
+func (v *ValidatorField[T]) Context() *valgo.ValidatorContext {
 	return v.context
 }
 
-func (v *ValidatorField) Set(template ...string) *ValidatorField {
+func (v *ValidatorField[T]) Set(template ...string) *ValidatorField[T] {
 	v.context.Add(
 		func() bool {
-			return v.context.Value() != nil
+			v, ok := v.context.Value().(*T)
+			return ok && v != nil
 		},
 		ErrorKeyFieldSet,
 		template...,
@@ -56,14 +57,14 @@ func (v *ValidatorField) Set(template ...string) *ValidatorField {
 	return v
 }
 
-func (v *ValidatorField) Not() *ValidatorField {
+func (v *ValidatorField[T]) Not() *ValidatorField[T] {
 	v.context.Not()
 
 	return v
 }
 
-func FieldValue[T any](value *T, nameAndTitle ...string) *ValidatorField {
-	return &ValidatorField{context: valgo.NewContext(value, nameAndTitle...)}
+func FieldValue[T any](value *T, nameAndTitle ...string) *ValidatorField[T] {
+	return &ValidatorField[T]{context: valgo.NewContext(value, nameAndTitle...)}
 }
 
 func ExtractValgoErrorFields(err *valgo.Error) (fieldName string, msg string, ok bool) {
