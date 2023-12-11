@@ -66,7 +66,7 @@ type sessionUpdater struct {
 
 func (u *sessionUpdater) run(ctx context.Context) error {
 	u.m.storage.Atomically(func(s *UnsafeStorage) {
-		u.changeStateTo(ctx, s, s.sessionState(u.sid))
+		u.changeStateTo(ctx, ctx, s, s.sessionState(u.sid))
 	})
 
 	for {
@@ -90,15 +90,15 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 			u.m.storage.Atomically(func(s *UnsafeStorage) {
 				switch msg := msg.(type) {
 				case *updateMsgPlayerAdded:
-					u.playerAdded(msg.ctx, s, msg.playerID, msg.reconnected)
+					u.playerAdded(ctx, msg.ctx, s, msg.playerID, msg.reconnected)
 				case *updateMsgRemovePlayer:
-					u.removePlayer(msg.ctx, s, msg.playerID)
+					u.removePlayer(ctx, msg.ctx, s, msg.playerID)
 				case *updateMsgChangeStateTo:
-					u.changeStateTo(ctx, s, msg.nextState)
+					u.changeStateTo(ctx, ctx, s, msg.nextState)
 				case *updateMsgSetPlayerReady:
-					u.setPlayerReady(ctx, s, msg.playerID, msg.ready)
+					u.setPlayerReady(ctx, ctx, s, msg.playerID, msg.ready)
 				case *updateMsgUpdTaskAnswer:
-					u.updateAnswer(msg.ctx, s, msg.playerID, msg.answer, msg.ready, msg.taskIdx)
+					u.updateAnswer(ctx, msg.ctx, s, msg.playerID, msg.answer, msg.ready, msg.taskIdx)
 				}
 			})
 		}
@@ -107,6 +107,7 @@ func (u *sessionUpdater) run(ctx context.Context) error {
 
 func (u *sessionUpdater) playerAdded(
 	ctx context.Context,
+	msgCtx context.Context,
 	s *UnsafeStorage,
 	playerID PlayerID,
 	reconnected bool,
@@ -131,10 +132,10 @@ func (u *sessionUpdater) playerAdded(
 
 	session, _ := s.sessionByID(u.sid)
 	game := session.game
-	joined := u.m.makeMsgJoined(ctx, player.ID, u.sid, &game, session.playersMax)
+	joined := u.m.makeMsgJoined(msgCtx, player.ID, u.sid, &game, session.playersMax)
 	u.m.sendToPlayer(player.tx, joined)
 
-	gameStatus := u.m.makeMsgGameStatus(ctx, s.Players(u.sid))
+	gameStatus := u.m.makeMsgGameStatus(msgCtx, s.Players(u.sid))
 
 	if reconnected {
 		u.m.sendToPlayer(player.tx, gameStatus)
@@ -147,10 +148,10 @@ func (u *sessionUpdater) playerAdded(
 	var stateMessage ServerTx
 	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
-		stateMessage = u.m.makeMsgWaiting(ctx, state.playersReady)
+		stateMessage = u.m.makeMsgWaiting(msgCtx, state.playersReady)
 
 	case *GameStartedState:
-		stateMessage = u.m.makeMsgGameStart(ctx, state.deadline)
+		stateMessage = u.m.makeMsgGameStart(msgCtx, state.deadline)
 
 	case *TaskStartedState:
 		task := game.Tasks[state.taskIdx]
@@ -161,18 +162,18 @@ func (u *sessionUpdater) playerAdded(
 				u.log.Panicf("no image registered for player %s (nickname=%q, clientID=%s)",
 					playerID, player.Nickname, player.ClientID)
 			}
-			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, answer)
+			stateMessage = u.m.makeMsgTaskStart(msgCtx, state.taskIdx, state.deadline, task, answer)
 
 		default:
-			stateMessage = u.m.makeMsgTaskStart(ctx, state.taskIdx, state.deadline, task, nil)
+			stateMessage = u.m.makeMsgTaskStart(msgCtx, state.taskIdx, state.deadline, task, nil)
 		}
 
 	case *PollStartedState:
-		stateMessage = u.m.makeMsgPollStart(ctx, state.taskIdx, state.deadline, state.options)
+		stateMessage = u.m.makeMsgPollStart(msgCtx, state.taskIdx, state.deadline, state.options)
 
 	case *TaskEndedState:
 		stateMessage = u.m.makeMsgTaskEnd(
-			ctx,
+			msgCtx,
 			state.taskIdx,
 			state.deadline,
 			s.taskByIdx(u.sid, state.taskIdx),
@@ -184,7 +185,12 @@ func (u *sessionUpdater) playerAdded(
 	u.m.sendToPlayer(player.tx, stateMessage)
 }
 
-func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, playerID PlayerID) {
+func (u *sessionUpdater) removePlayer(
+	ctx context.Context,
+	msgCtx context.Context,
+	s *UnsafeStorage,
+	playerID PlayerID,
+) {
 	player, err := s.PlayerByID(u.sid, playerID)
 	if err != nil {
 		u.log.Printf("received removePlayer for unknown player: %s", err)
@@ -196,9 +202,9 @@ func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, pla
 		// note that we have to send an error to the owner too.
 		// therefore we don't remove them here.
 		for _, tx := range s.PlayerTxs(u.sid) {
-			u.m.sendToPlayer(tx, u.m.makeMsgError(ctx, ErrOwnerLeft))
+			u.m.sendToPlayer(tx, u.m.makeMsgError(msgCtx, ErrOwnerLeft))
 		}
-		u.changeStateTo(ctx, s, nil)
+		u.changeStateTo(ctx, msgCtx, s, nil)
 		return
 	}
 
@@ -207,23 +213,23 @@ func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, pla
 	u.m.closePlayerTx(s, u.sid, playerID)
 	s.removePlayer(u.sid, player.ClientID)
 
-	gameStatus := u.m.makeMsgGameStatus(ctx, s.Players(u.sid))
+	gameStatus := u.m.makeMsgGameStatus(msgCtx, s.Players(u.sid))
 	for _, tx := range s.PlayerTxs(u.sid) {
 		u.m.sendToPlayer(tx, gameStatus)
 	}
 
 	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
-		u.setPlayerStartReady(ctx, s, state, playerID, false)
+		u.setPlayerStartReady(ctx, msgCtx, s, state, playerID, false)
 
 	case *GameStartedState:
 		// do nothing
 
 	case *TaskStartedState:
-		u.setPlayerAnswerReady(ctx, s, state, playerID, false)
+		u.setPlayerAnswerReady(ctx, msgCtx, s, state, playerID, false)
 
 	case *PollStartedState:
-		u.setPlayerVote(ctx, s, state, playerID, NewOptionIdx(-1))
+		u.setPlayerVote(ctx, msgCtx, s, state, playerID, NewOptionIdx(-1))
 
 	case *TaskEndedState:
 		// do nothing
@@ -234,6 +240,7 @@ func (u *sessionUpdater) removePlayer(ctx context.Context, s *UnsafeStorage, pla
 // If the nextState is nil, the session is closed.
 func (u *sessionUpdater) changeStateTo(
 	ctx context.Context,
+	msgCtx context.Context,
 	s *UnsafeStorage,
 	nextState State,
 ) {
@@ -259,7 +266,7 @@ func (u *sessionUpdater) changeStateTo(
 		// do nothing
 
 	case *GameStartedState:
-		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameStart(ctx, nextState.deadline))
+		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameStart(msgCtx, nextState.deadline))
 
 	case *TaskStartedState:
 		task := s.taskByIdx(u.sid, nextState.taskIdx)
@@ -289,7 +296,7 @@ func (u *sessionUpdater) changeStateTo(
 			})
 			if err != nil {
 				u.log.Printf("could not start a PhotoTask: %s", err)
-				u.m.sendErrorToAllPlayers(ctx, s, u.sid, ErrInternal)
+				u.m.sendErrorToAllPlayers(msgCtx, s, u.sid, ErrInternal)
 				u.m.db.AcquireTx(ctx, func(tx pgx.Tx) error {
 					u.m.closeSession(ctx, s, tx, u.sid)
 					tx.Commit(ctx)
@@ -298,12 +305,12 @@ func (u *sessionUpdater) changeStateTo(
 				return
 			}
 			s.ForEachPlayer(u.sid, func(p Player) {
-				u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(ctx, nextState.taskIdx, nextState.deadline, task, nextState.answers[p.ID]))
+				u.m.sendToPlayer(p.tx, u.m.makeMsgTaskStart(msgCtx, nextState.taskIdx, nextState.deadline, task, nextState.answers[p.ID]))
 			})
 
 		default:
 			for _, tx := range s.PlayerTxs(u.sid) {
-				u.m.sendToPlayer(tx, u.m.makeMsgTaskStart(ctx, nextState.taskIdx, nextState.deadline, task, nil))
+				u.m.sendToPlayer(tx, u.m.makeMsgTaskStart(msgCtx, nextState.taskIdx, nextState.deadline, task, nil))
 			}
 		}
 
@@ -313,7 +320,7 @@ func (u *sessionUpdater) changeStateTo(
 	case *TaskEndedState:
 		s.incrementScores(u.sid, nextState.winners)
 		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgTaskEnd(
-			ctx,
+			msgCtx,
 			nextState.taskIdx,
 			nextState.deadline,
 			s.taskByIdx(u.sid, nextState.taskIdx),
@@ -328,6 +335,7 @@ func (u *sessionUpdater) changeStateTo(
 
 func (u *sessionUpdater) setPlayerReady(
 	ctx context.Context,
+	msgCtx context.Context,
 	s *UnsafeStorage,
 	playerID PlayerID,
 	ready bool,
@@ -343,12 +351,13 @@ func (u *sessionUpdater) setPlayerReady(
 	}
 
 	if state, ok := state.(*AwaitingPlayersState); ok {
-		u.setPlayerStartReady(ctx, s, state, playerID, ready)
+		u.setPlayerStartReady(ctx, msgCtx, s, state, playerID, ready)
 	}
 }
 
 func (u *sessionUpdater) updateAnswer(
 	ctx context.Context,
+	msgCtx context.Context,
 	s *UnsafeStorage,
 	playerID PlayerID,
 	answer TaskAnswer,
@@ -371,7 +380,7 @@ func (u *sessionUpdater) updateAnswer(
 		return
 
 	case state.taskIdx < taskIdx:
-		u.m.sendToPlayer(player.tx, u.m.makeMsgError(ctx, ErrTaskNotStartedYet))
+		u.m.sendToPlayer(player.tx, u.m.makeMsgError(msgCtx, ErrTaskNotStartedYet))
 		u.m.closePlayerTx(s, u.sid, playerID)
 		return
 	}
@@ -379,17 +388,17 @@ func (u *sessionUpdater) updateAnswer(
 	if answer != nil {
 		state.answers[playerID] = answer
 	}
-	u.setPlayerAnswerReady(ctx, s, state, playerID, ready)
+	u.setPlayerAnswerReady(ctx, msgCtx, s, state, playerID, ready)
 }
 
 func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) {
 	switch state := s.sessionState(u.sid).(type) {
 	case *AwaitingPlayersState:
 		u.m.sendErrorToAllPlayers(ctx, s, u.sid, ErrNoOwnerTimeout)
-		u.changeStateTo(ctx, s, nil)
+		u.changeStateTo(ctx, ctx, s, nil)
 
 	case *GameStartedState:
-		u.changeStateTo(ctx, s, u.makeFirstTaskStartedState(s, state))
+		u.changeStateTo(ctx, ctx, s, u.makeFirstTaskStartedState(s, state))
 
 	case *TaskStartedState:
 		task := s.taskByIdx(u.sid, state.taskIdx)
@@ -397,25 +406,26 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 			u.log.Panicf("task %d not found", state.taskIdx)
 		}
 		if task.NeedsPoll() {
-			u.changeStateTo(ctx, s, u.makePollStartedState(s, state))
+			u.changeStateTo(ctx, ctx, s, u.makePollStartedState(s, state))
 		} else {
-			u.changeStateTo(ctx, s, u.makePlainTaskEndedState(s, state))
+			u.changeStateTo(ctx, ctx, s, u.makePlainTaskEndedState(s, state))
 		}
 
 	case *PollStartedState:
-		u.changeStateTo(ctx, s, u.makePollTaskEndedState(s, state))
+		u.changeStateTo(ctx, ctx, s, u.makePollTaskEndedState(s, state))
 
 	case *TaskEndedState:
 		if s.hasNextTask(u.sid, state.taskIdx) {
-			u.changeStateTo(ctx, s, u.makeNextTaskStartedState(s, state))
+			u.changeStateTo(ctx, ctx, s, u.makeNextTaskStartedState(s, state))
 		} else {
-			u.finishGame(ctx, s, state)
+			u.finishGame(ctx, ctx, s, state)
 		}
 	}
 }
 
 func (u *sessionUpdater) setPlayerStartReady(
 	ctx context.Context,
+	msgCtx context.Context,
 	s *UnsafeStorage,
 	state *AwaitingPlayersState,
 	playerID PlayerID,
@@ -432,13 +442,13 @@ func (u *sessionUpdater) setPlayerStartReady(
 		delete(state.playersReady, playerID)
 	}
 
-	waiting := u.m.makeMsgWaiting(ctx, state.playersReady)
+	waiting := u.m.makeMsgWaiting(msgCtx, state.playersReady)
 	for _, tx := range s.PlayerTxs(u.sid) {
 		u.m.sendToPlayer(tx, waiting)
 	}
 
 	if u.shouldStartGame(s) {
-		u.changeStateTo(ctx, s, u.makeGameStartedState(s, state))
+		u.changeStateTo(ctx, msgCtx, s, u.makeGameStartedState(s, state))
 	}
 }
 
@@ -469,6 +479,7 @@ func (u *sessionUpdater) shouldStartGame(s *UnsafeStorage) (start bool) {
 
 func (u *sessionUpdater) setPlayerAnswerReady(
 	ctx context.Context,
+	msgCtx context.Context,
 	s *UnsafeStorage,
 	state *TaskStartedState,
 	playerID PlayerID,
@@ -483,6 +494,7 @@ func (u *sessionUpdater) setPlayerAnswerReady(
 
 func (u *sessionUpdater) setPlayerVote(
 	ctx context.Context,
+	msgCtx context.Context,
 	s *UnsafeStorage,
 	state *PollStartedState,
 	playerID PlayerID,
@@ -494,12 +506,17 @@ func (u *sessionUpdater) setPlayerVote(
 // finishGame finishes the game normally.
 //
 // If you're looking for a way to close a session quickly, just do changeStateTo(..., nil).
-func (u *sessionUpdater) finishGame(ctx context.Context, s *UnsafeStorage, state *TaskEndedState) {
+func (u *sessionUpdater) finishGame(
+	ctx context.Context,
+	msgCtx context.Context,
+	s *UnsafeStorage,
+	state *TaskEndedState,
+) {
 	if !s.SessionExists(u.sid) {
 		// could've got closed already
 		return
 	}
 
-	u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameEnd(ctx, s.SessionScoreboard(u.sid)))
-	u.changeStateTo(ctx, s, nil)
+	u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameEnd(msgCtx, s.SessionScoreboard(u.sid)))
+	u.changeStateTo(ctx, msgCtx, s, nil)
 }
