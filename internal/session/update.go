@@ -259,7 +259,7 @@ func (u *sessionUpdater) changeStateTo(
 		// do nothing
 
 	case *GameStartedState:
-		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameStart(ctx, state.deadline))
+		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameStart(ctx, nextState.deadline))
 
 	case *TaskStartedState:
 		task := s.taskByIdx(u.sid, nextState.taskIdx)
