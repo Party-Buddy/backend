@@ -252,10 +252,10 @@ func (u *sessionUpdater) changeStateTo(
 
 	switch state := nextState.(type) {
 	case *AwaitingPlayersState:
-		// TODO
+		// do nothing
 
 	case *GameStartedState:
-		// TODO
+		u.m.sendToAllPlayers(s, u.sid, u.m.makeMsgGameStart(ctx, state.deadline))
 
 	case *TaskStartedState:
 		task := s.taskByIdx(u.sid, state.taskIdx)
