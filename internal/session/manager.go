@@ -342,6 +342,7 @@ func (m *Manager) closeSession(
 	tx pgx.Tx,
 	sid SessionID,
 ) {
+	m.log.Printf("closing session %s", sid)
 	s.ForEachPlayer(sid, func(p Player) {
 		m.closePlayerTx(s, sid, p.ID)
 	})
