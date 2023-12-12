@@ -153,6 +153,10 @@ func (c *Conn) runServeToWriterConverter(
 			}
 
 			c.serverLog.Printf("handling %T received via the server channel", msg)
+			if c.stopRequested.Load() {
+				c.serverLog.Printf("stop requested, skipping message handling")
+				continue
+			}
 
 			var clientMessage ws.RespMessage
 			switch m := msg.(type) {
@@ -216,9 +220,7 @@ func (c *Conn) runServeToWriterConverter(
 				c.serverLog.Println("unknown msg from server")
 				continue
 			}
-			if !c.stopRequested.Load() {
-				msgChan <- clientMessage
-			}
+			msgChan <- clientMessage
 		}
 	}
 }
