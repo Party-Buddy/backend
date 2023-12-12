@@ -198,7 +198,8 @@ func (u *sessionUpdater) removePlayer(
 	}
 
 	if state, ok := s.sessionState(u.sid).(*AwaitingPlayersState); ok && state.owner == player.ClientID {
-		// the owner left the session: close it.
+		u.log.Println("the owner has left the session, closing")
+
 		// note that we have to send an error to the owner too.
 		// therefore we don't remove them here.
 		for _, tx := range s.PlayerTxs(u.sid) {
@@ -208,10 +209,14 @@ func (u *sessionUpdater) removePlayer(
 		return
 	}
 
-	// TODO: close the session if there aren't any players left
-
 	u.m.closePlayerTx(s, u.sid, playerID)
 	s.removePlayer(u.sid, player.ClientID)
+
+	if !s.AwaitingPlayers(u.sid) && s.PlayerCount(u.sid) == 0 {
+		u.log.Println("no players left in the session, closing")
+		u.changeStateTo(ctx, msgCtx, s, nil)
+		return
+	}
 
 	gameStatus := u.m.makeMsgGameStatus(msgCtx, s.Players(u.sid))
 	for _, tx := range s.PlayerTxs(u.sid) {
