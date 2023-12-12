@@ -109,6 +109,7 @@ func (c *Conn) StartReadAndWriteConn(f *valgo.ValidationFactory) {
 	c.stopRequested.Store(false)
 	servChan := make(chan session.ServerTx)
 	msgChan := make(chan ws.RespMessage)
+	c.servDataChan = servChan
 	c.msgToClientChan = msgChan
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = validate.NewContext(ctx, f)
@@ -349,8 +350,8 @@ func (c *Conn) dispose(ctx context.Context) {
 		c.manager.RemovePlayer(ctx, c.sid, *c.playerID)
 	} else {
 		// Manager knows nothing about client, so we just stop threads
-		c.mainLog.Printf("canceling the context")
-		c.cancel()
+		c.mainLog.Printf("closing serv data chan")
+		close(c.servDataChan)
 	}
 }
 
