@@ -67,7 +67,7 @@ func (c *Conn) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer) {
 		case ws.CheckedText:
 			answer = session.CheckedTextAnswer(*m.Answer.Text)
 		case ws.Option:
-			answer = session.TextTaskAnswer(*m.Answer.Option)
+			answer = session.ChoiceTaskAnswer(*m.Answer.Option)
 		default:
 			c.readerLog.Panicf("unsupported answer type: %s", *m.Answer.Type)
 		}

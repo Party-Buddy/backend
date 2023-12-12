@@ -304,8 +304,9 @@ type MessageTaskAnswer struct {
 
 func (m *MessageTaskAnswer) Validate(ctx context.Context) *valgo.Validation {
 	v := m.BaseMessage.Validate(ctx).
-		Is(valgo.IntP(m.TaskIdx, "task-idx", "task-idx").Not().Nil().LessThan(configuration.MaxTaskCount)).
-		Is(valgo.BoolP(m.Ready, "ready", "ready").Not().Nil()).
+		Is(validate.FieldValue(m.TaskIdx, "task-idx", "task-idx").Set()).
+		Is(valgo.IntP(m.TaskIdx, "task-idx", "task-idx").LessThan(configuration.MaxTaskCount)).
+		Is(validate.FieldValue(m.Ready, "ready", "ready").Set()).
 		Is(valgo.StringP(m.Kind, "kind", "kind").Not().Nil().EqualTo(MsgKindTaskAnswer))
 	if m.Answer != nil {
 		v.Merge(m.Answer.Validate(ctx))
@@ -444,7 +445,7 @@ func ParseErrorToMessageError(err error) error {
 		return &Error{
 			RefID:   nil,
 			Code:    ErrMalformedMsg,
-			Message: fmt.Sprintf("in field `%s`: %s has an illegal type", typeError.Field, typeError.Value),
+			Message: fmt.Sprintf("in field `%s`: %s is not allowed here", typeError.Field, typeError.Value),
 		}
 	}
 
@@ -453,7 +454,7 @@ func ParseErrorToMessageError(err error) error {
 		return &Error{
 			RefID:   nil,
 			Code:    ErrMalformedMsg,
-			Message: fmt.Sprintf("syntax error %s", syntaxError),
+			Message: fmt.Sprintf("syntax error: %s", syntaxError),
 		}
 	}
 

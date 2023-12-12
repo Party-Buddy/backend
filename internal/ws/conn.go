@@ -253,9 +253,8 @@ func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
 		}
 		msg, err := ws.ParseMessage(ctx, bytes)
 		if err != nil {
-			err = ws.ParseErrorToMessageError(err)
 			var errDto *ws.Error
-			errors.As(err, &errDto)
+			errors.As(ws.ParseErrorToMessageError(err), &errDto)
 			rspMessage := ws.MessageError{
 				BaseMessage: utils.GenBaseMessage(&ws.MsgKindError),
 				Error:       *errDto,
