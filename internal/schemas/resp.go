@@ -43,7 +43,13 @@ type PollDuration struct {
 
 type TaskType string
 
-var validTaskTypes = []TaskType{Photo, Text, CheckedText, Choice}
+var validTaskTypes = []TaskType{
+	// XXX: The tasks requiring a poll are commented out: we don't support these yet.
+	// Photo,
+	// Text,
+	CheckedText,
+	Choice,
+}
 
 const (
 	Photo       TaskType = "photo"

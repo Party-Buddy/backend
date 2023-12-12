@@ -123,16 +123,21 @@ func (u *sessionUpdater) playerAdded(
 		return
 	}
 
-	if state, ok := state.(*AwaitingPlayersState); ok && state.owner == player.ClientID {
-		u.log.Printf("the owner %s has joined the session", state.owner)
+	var inviteCode *InviteCode
 
-		// the owner has at last joined the session
-		u.deadline.Stop()
+	if state, ok := state.(*AwaitingPlayersState); ok {
+		if state.owner == player.ClientID {
+			u.log.Printf("the owner %s has joined the session", state.owner)
+
+			// the owner has at last joined the session
+			u.deadline.Stop()
+		}
+
+		inviteCode = &state.inviteCode
 	}
 
-	session, _ := s.sessionByID(u.sid)
-	game := session.game
-	joined := u.m.makeMsgJoined(msgCtx, player.ID, u.sid, &game, session.playersMax)
+	game, _ := s.SessionGame(u.sid)
+	joined := u.m.makeMsgJoined(msgCtx, player.ID, u.sid, inviteCode, &game, s.PlayersMax(u.sid))
 	u.m.sendToPlayer(player.tx, joined)
 
 	gameStatus := u.m.makeMsgGameStatus(msgCtx, s.Players(u.sid))
@@ -198,7 +203,8 @@ func (u *sessionUpdater) removePlayer(
 	}
 
 	if state, ok := s.sessionState(u.sid).(*AwaitingPlayersState); ok && state.owner == player.ClientID {
-		// the owner left the session: close it.
+		u.log.Println("the owner has left the session, closing")
+
 		// note that we have to send an error to the owner too.
 		// therefore we don't remove them here.
 		for _, tx := range s.PlayerTxs(u.sid) {
@@ -208,10 +214,14 @@ func (u *sessionUpdater) removePlayer(
 		return
 	}
 
-	// TODO: close the session if there aren't any players left
-
 	u.m.closePlayerTx(s, u.sid, playerID)
 	s.removePlayer(u.sid, player.ClientID)
+
+	if !s.AwaitingPlayers(u.sid) && s.PlayerCount(u.sid) == 0 {
+		u.log.Println("no players left in the session, closing")
+		u.changeStateTo(ctx, msgCtx, s, nil)
+		return
+	}
 
 	gameStatus := u.m.makeMsgGameStatus(msgCtx, s.Players(u.sid))
 	for _, tx := range s.PlayerTxs(u.sid) {

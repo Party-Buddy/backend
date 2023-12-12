@@ -18,6 +18,7 @@ func (m *Manager) makeMsgJoined(
 	ctx context.Context,
 	playerID PlayerID,
 	sid SessionID,
+	inviteCode *InviteCode,
 	game *Game,
 	maxPlayers int,
 ) ServerTx {
@@ -25,6 +26,7 @@ func (m *Manager) makeMsgJoined(
 		baseTx:     baseTx{Ctx: ctx},
 		PlayerID:   playerID,
 		SessionID:  sid,
+		InviteCode: inviteCode,
 		Game:       game,
 		MaxPlayers: maxPlayers,
 	}
