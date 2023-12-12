@@ -238,6 +238,14 @@ func (s *UnsafeStorage) Players(sid SessionID) (players []Player) {
 	return
 }
 
+// PlayersMax returns the maximum number of players in a session.
+func (s *UnsafeStorage) PlayersMax(sid SessionID) int {
+	if session := s.sessions[sid]; session != nil {
+		return session.playersMax
+	}
+	return 0
+}
+
 // PlayerTxs returns a Tx channel for each player in a session.
 func (s *UnsafeStorage) PlayerTxs(sid SessionID) (txs []TxChan) {
 	s.ForEachPlayer(sid, func(player Player) {

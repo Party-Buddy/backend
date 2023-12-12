@@ -509,6 +509,7 @@ type MessageJoined struct {
 	RefID      *MessageID          `json:"ref-id"`
 	PlayerID   uint32              `json:"player-id"`
 	Sid        uuid.UUID           `json:"session-id"`
+	InviteCode *string             `json:"invite-code"`
 	Game       schemas.GameDetails `json:"game"`
 	MaxPlayers uint8               `json:"max-players"`
 }

@@ -123,16 +123,21 @@ func (u *sessionUpdater) playerAdded(
 		return
 	}
 
-	if state, ok := state.(*AwaitingPlayersState); ok && state.owner == player.ClientID {
-		u.log.Printf("the owner %s has joined the session", state.owner)
+	var inviteCode *InviteCode
 
-		// the owner has at last joined the session
-		u.deadline.Stop()
+	if state, ok := state.(*AwaitingPlayersState); ok {
+		if state.owner == player.ClientID {
+			u.log.Printf("the owner %s has joined the session", state.owner)
+
+			// the owner has at last joined the session
+			u.deadline.Stop()
+		}
+
+		inviteCode = &state.inviteCode
 	}
 
-	session, _ := s.sessionByID(u.sid)
-	game := session.game
-	joined := u.m.makeMsgJoined(msgCtx, player.ID, u.sid, &game, session.playersMax)
+	game, _ := s.SessionGame(u.sid)
+	joined := u.m.makeMsgJoined(msgCtx, player.ID, u.sid, inviteCode, &game, s.PlayersMax(u.sid))
 	u.m.sendToPlayer(player.tx, joined)
 
 	gameStatus := u.m.makeMsgGameStatus(msgCtx, s.Players(u.sid))

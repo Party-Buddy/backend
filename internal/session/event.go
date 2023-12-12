@@ -36,6 +36,7 @@ type MsgJoined struct {
 
 	PlayerID   PlayerID
 	SessionID  SessionID
+	InviteCode *InviteCode
 	Game       *Game
 	MaxPlayers int
 }
