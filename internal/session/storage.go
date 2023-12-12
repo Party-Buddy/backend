@@ -1,7 +1,10 @@
 package session
 
 import (
+	"crypto/rand"
 	"fmt"
+	"log"
+	"math/big"
 	"sync"
 	"time"
 )
@@ -137,6 +140,31 @@ func (s *UnsafeStorage) newSession(
 
 	updateChan = make(chan updateMsg)
 	s.updaters[sid] = updateChan
+
+	// shuffle options in ChoiceTasks
+	tasks := s.sessions[sid].game.Tasks
+	for taskIdx, task := range tasks {
+		if task, ok := task.(ChoiceTask); ok {
+			for i := range task.Options {
+				offset, err := rand.Int(rand.Reader, big.NewInt(int64(len(task.Options)-i)))
+				if err != nil {
+					log.Panicf("could not generate a random number for shuffling ChoiceTask options: %s", err)
+				}
+
+				j := i + int(offset.Int64())
+				task.Options[i], task.Options[j] = task.Options[j], task.Options[i]
+
+				switch task.AnswerIdx {
+				case i:
+					task.AnswerIdx = j
+				case j:
+					task.AnswerIdx = i
+				}
+			}
+
+			tasks[taskIdx] = task
+		}
+	}
 
 	return
 }
