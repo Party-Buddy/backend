@@ -11,6 +11,7 @@ import (
 	"party-buddy/internal/ws/converters"
 	"party-buddy/internal/ws/utils"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -55,7 +56,11 @@ type Conn struct {
 	writerLog *log.Logger
 	serverLog *log.Logger
 
+	// state is the current web socket protocol state
 	state sessionState
+
+	// stateMtx should be locked before accessing the state
+	stateMtx sync.Mutex
 }
 
 func logPrefix(sid session.SessionID, clientID session.ClientID, playerID *session.PlayerID, sub string) string {
@@ -109,6 +114,7 @@ func (c *Conn) StartReadAndWriteConn(f *valgo.ValidationFactory) {
 	ctx = validate.NewContext(ctx, f)
 	c.cancel = cancel
 	c.state = initialState{}
+	c.stateMtx = sync.Mutex{}
 	go c.runReader(ctx, servChan)
 	go c.runServeToWriterConverter(ctx, msgChan, servChan)
 	go c.runWriter(ctx, msgChan)
@@ -160,7 +166,10 @@ func (c *Conn) runServeToWriterConverter(
 				joinedMsg := converters.ToMessageJoined(*m)
 				joinedMsg.RefID = msgIDFromContext(m.Context())
 				clientMessage = &joinedMsg
+
+				c.stateMtx.Lock()
 				c.state = awaitingPlayersState{}
+				c.stateMtx.Unlock()
 
 			case *session.MsgGameStatus:
 				gameStatusMsg := converters.ToMessageGameStatus(*m)
@@ -169,22 +178,34 @@ func (c *Conn) runServeToWriterConverter(
 			case *session.MsgTaskStart:
 				taskStartMsg := converters.ToMessageTaskStart(*m)
 				clientMessage = &taskStartMsg
+
+				c.stateMtx.Lock()
 				c.state = taskStartedState{}
+				c.stateMtx.Unlock()
 
 			case *session.MsgTaskEnd:
 				taskEndMsg := converters.ToMessageTaskEnd(*m)
 				clientMessage = &taskEndMsg
+
+				c.stateMtx.Lock()
 				c.state = taskEndedState{}
+				c.stateMtx.Unlock()
 
 			case *session.MsgGameStart:
 				gameStartMsg := converters.ToMessageGameStart(*m)
 				clientMessage = &gameStartMsg
+
+				c.stateMtx.Lock()
 				c.state = gameStartedState{}
+				c.stateMtx.Unlock()
 
 			case *session.MsgWaiting:
 				waitingMsg := converters.ToMessageWaiting(*m)
 				clientMessage = &waitingMsg
+
+				c.stateMtx.Lock()
 				c.state = awaitingPlayersState{}
+				c.stateMtx.Unlock()
 
 			case *session.MsgGameEnd:
 				gameEndMsg := converters.ToMessageGameEnd(*m)
@@ -273,12 +294,15 @@ func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
 			return
 		}
 
-		if !c.state.isAllowedMsg(msg) {
+		c.stateMtx.Lock()
+		st := c.state
+		c.stateMtx.Unlock()
+		if !st.isAllowedMsg(msg) {
 			id := msg.GetMsgID()
 			errMsg := utils.GenMessageError(&id, ws.ErrProtoViolation,
 				fmt.Sprintf("the message `%s` is not allowed in the current state", msg.GetKind()))
 			c.readerLog.Printf("received a message `%s`: not allowed in the current state `%s` (error code `%v`)",
-				msg.GetKind(), c.state.name(), errMsg.Code)
+				msg.GetKind(), st.name(), errMsg.Code)
 			c.msgToClientChan <- &errMsg
 
 			c.dispose(ctx)
