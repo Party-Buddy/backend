@@ -42,12 +42,18 @@ func (u *sessionUpdater) makePollStartedState(s *UnsafeStorage, state *TaskStart
 }
 
 func (u *sessionUpdater) makePlainTaskEndedState(s *UnsafeStorage, state *TaskStartedState) *TaskEndedState {
-	var results []AnswerResult
+	results := make([]AnswerResult, 0)
 	winners := make(map[PlayerID]Score)
 
 	switch task := s.taskByIdx(u.sid, state.taskIdx).(type) {
 	case CheckedTextTask:
 		answerIndices := make(map[string]int)
+
+		// this has to be sent even if no player answered correctly
+		answerIndices[task.Answer] = len(results)
+		results = append(results, AnswerResult{
+			Value: CheckedTextAnswer(task.Answer),
+		})
 
 		// NOTE: it's imperative we traverse s.Players and not state.answers:
 		// we're only interested in players still in the session
