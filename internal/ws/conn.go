@@ -148,47 +148,59 @@ func (c *Conn) runServeToWriterConverter(
 
 			c.serverLog.Printf("handling %T received via the server channel", msg)
 
+			var clientMessage ws.RespMessage
 			switch m := msg.(type) {
 			case *session.MsgError:
 				refID := msgIDFromContext(m.Context())
 				kind, errMsg := converters.ErrorCodeAndMessage(m.Inner)
 				errorMsg := utils.GenMessageError(refID, kind, errMsg)
-				msgChan <- &errorMsg
+				clientMessage = &errorMsg
 
 			case *session.MsgJoined:
 				joinedMsg := converters.ToMessageJoined(*m)
 				joinedMsg.RefID = msgIDFromContext(m.Context())
-				msgChan <- &joinedMsg
+				clientMessage = &joinedMsg
 				c.state = awaitingPlayersState{}
 
 			case *session.MsgGameStatus:
 				gameStatusMsg := converters.ToMessageGameStatus(*m)
-				msgChan <- &gameStatusMsg
+				clientMessage = &gameStatusMsg
 
 			case *session.MsgTaskStart:
 				taskStartMsg := converters.ToMessageTaskStart(*m)
-				msgChan <- &taskStartMsg
+				clientMessage = &taskStartMsg
 				c.state = taskStartedState{}
 
 			case *session.MsgTaskEnd:
 				taskEndMsg := converters.ToMessageTaskEnd(*m)
-				msgChan <- &taskEndMsg
+				clientMessage = &taskEndMsg
 				c.state = taskEndedState{}
 
 			case *session.MsgGameStart:
 				gameStartMsg := converters.ToMessageGameStart(*m)
-				msgChan <- &gameStartMsg
+				clientMessage = &gameStartMsg
 				c.state = gameStartedState{}
 
 			case *session.MsgWaiting:
 				waitingMsg := converters.ToMessageWaiting(*m)
-				msgChan <- &waitingMsg
+				clientMessage = &waitingMsg
 				c.state = awaitingPlayersState{}
 
 			case *session.MsgGameEnd:
 				gameEndMsg := converters.ToMessageGameEnd(*m)
-				msgChan <- &gameEndMsg
+				clientMessage = &gameEndMsg
 			}
+
+			if c.stopRequested.Load() {
+				c.serverLog.Println("stop requested")
+				return
+			}
+			if clientMessage == nil {
+				c.serverLog.Println("unknown msg from server")
+				continue
+			}
+
+			msgChan <- clientMessage
 		}
 	}
 }
@@ -207,7 +219,6 @@ func (c *Conn) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
 		case msg := <-msgChan:
 			if msg == nil {
 				c.writerLog.Println("the writer channel has been closed, canceling the context")
-				c.cancel()
 				return
 			}
 
@@ -219,11 +230,6 @@ func (c *Conn) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
 
 			if err != nil {
 				c.writerLog.Printf("encountered an error while sending a message: %s", err)
-			}
-
-			if c.stopRequested.Load() {
-				c.cancel()
-				return
 			}
 		}
 	}
@@ -241,6 +247,7 @@ func msgIDFromContext(ctx context.Context) *ws.MessageID {
 }
 
 func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
+	defer c.readerLog.Printf("stopping")
 	for !c.stopRequested.Load() {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
