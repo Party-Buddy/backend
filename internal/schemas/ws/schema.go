@@ -209,14 +209,11 @@ func (m *MessageKick) Validate(ctx context.Context) *valgo.Validation {
 
 type MessageLeave struct {
 	BaseMessage
-
-	// TODO
 }
 
 func (m *MessageLeave) Validate(ctx context.Context) *valgo.Validation {
-	f, _ := validate.FromContext(ctx)
-	// TODO
-	return f.New()
+	return m.BaseMessage.Validate(ctx).
+		Is(valgo.StringP(m.Kind, "kind", "kind").EqualTo(MsgKindLeave))
 }
 
 type RecvAnswerType string

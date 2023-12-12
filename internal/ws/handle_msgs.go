@@ -48,6 +48,21 @@ func (c *Conn) handleReady(ctx context.Context, m *ws.MessageReady) {
 	}
 }
 
+func (c *Conn) handleLeave(ctx context.Context, m *ws.MessageLeave) {
+	if c.playerID == nil {
+		// TODO: stop copy-pasting the same thing over and over and over again
+		code, message := ws.ErrInternal, "internal error"
+		errMsg := utils.GenMessageError(m.MsgID, code, message)
+		c.readerLog.Printf("the client has not yet joined the session (code `%s`)", code)
+		c.msgToClientChan <- &errMsg
+
+		c.dispose(ctx)
+		return
+	}
+
+	c.dispose(ctx)
+}
+
 func (c *Conn) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer) {
 	if c.playerID == nil {
 		code, message := ws.ErrInternal, "internal error"

@@ -303,19 +303,23 @@ func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
 		}
 
 		ctx = context.WithValue(ctx, msgIDKey, msg.GetMsgID())
+		c.readerLog.Printf("handling message `%s`", msg.GetKind())
 
 		switch m := msg.(type) {
 		case *ws.MessageJoin:
-			c.readerLog.Println("handling message Join")
 			c.handleJoin(ctx, m, servDataChan)
 
 		case *ws.MessageReady:
-			c.readerLog.Println("handling message Ready")
 			c.handleReady(ctx, m)
 
+		case *ws.MessageLeave:
+			c.handleLeave(ctx, m)
+
 		case *ws.MessageTaskAnswer:
-			c.readerLog.Println("handling message TaskAnswer")
 			c.handleTaskAnswer(ctx, m)
+
+		default:
+			c.readerLog.Printf("message `%s` ignored: no handler registered", msg.GetKind())
 		}
 	}
 }
