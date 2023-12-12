@@ -109,6 +109,7 @@ func (c *Conn) StartReadAndWriteConn(f *valgo.ValidationFactory) {
 	c.stopRequested.Store(false)
 	servChan := make(chan session.ServerTx)
 	msgChan := make(chan ws.RespMessage)
+	c.servDataChan = servChan
 	c.msgToClientChan = msgChan
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = validate.NewContext(ctx, f)
@@ -140,7 +141,7 @@ func (c *Conn) runServeToWriterConverter(
 		c.serverLog.Println("stopping")
 	}()
 
-	for !c.stopRequested.Load() {
+	for {
 		select {
 		case <-ctx.Done():
 			return
@@ -153,18 +154,23 @@ func (c *Conn) runServeToWriterConverter(
 			}
 
 			c.serverLog.Printf("handling %T received via the server channel", msg)
+			if c.stopRequested.Load() {
+				c.serverLog.Printf("stop requested, skipping message handling")
+				continue
+			}
 
+			var clientMessage ws.RespMessage
 			switch m := msg.(type) {
 			case *session.MsgError:
 				refID := msgIDFromContext(m.Context())
 				kind, errMsg := converters.ErrorCodeAndMessage(m.Inner)
 				errorMsg := utils.GenMessageError(refID, kind, errMsg)
-				msgChan <- &errorMsg
+				clientMessage = &errorMsg
 
 			case *session.MsgJoined:
 				joinedMsg := converters.ToMessageJoined(*m)
 				joinedMsg.RefID = msgIDFromContext(m.Context())
-				msgChan <- &joinedMsg
+				clientMessage = &joinedMsg
 
 				c.stateMtx.Lock()
 				c.state = awaitingPlayersState{}
@@ -172,11 +178,11 @@ func (c *Conn) runServeToWriterConverter(
 
 			case *session.MsgGameStatus:
 				gameStatusMsg := converters.ToMessageGameStatus(*m)
-				msgChan <- &gameStatusMsg
+				clientMessage = &gameStatusMsg
 
 			case *session.MsgTaskStart:
 				taskStartMsg := converters.ToMessageTaskStart(*m)
-				msgChan <- &taskStartMsg
+				clientMessage = &taskStartMsg
 
 				c.stateMtx.Lock()
 				c.state = taskStartedState{}
@@ -184,7 +190,7 @@ func (c *Conn) runServeToWriterConverter(
 
 			case *session.MsgTaskEnd:
 				taskEndMsg := converters.ToMessageTaskEnd(*m)
-				msgChan <- &taskEndMsg
+				clientMessage = &taskEndMsg
 
 				c.stateMtx.Lock()
 				c.state = taskEndedState{}
@@ -192,7 +198,7 @@ func (c *Conn) runServeToWriterConverter(
 
 			case *session.MsgGameStart:
 				gameStartMsg := converters.ToMessageGameStart(*m)
-				msgChan <- &gameStartMsg
+				clientMessage = &gameStartMsg
 
 				c.stateMtx.Lock()
 				c.state = gameStartedState{}
@@ -200,7 +206,7 @@ func (c *Conn) runServeToWriterConverter(
 
 			case *session.MsgWaiting:
 				waitingMsg := converters.ToMessageWaiting(*m)
-				msgChan <- &waitingMsg
+				clientMessage = &waitingMsg
 
 				c.stateMtx.Lock()
 				c.state = awaitingPlayersState{}
@@ -208,8 +214,14 @@ func (c *Conn) runServeToWriterConverter(
 
 			case *session.MsgGameEnd:
 				gameEndMsg := converters.ToMessageGameEnd(*m)
-				msgChan <- &gameEndMsg
+				clientMessage = &gameEndMsg
 			}
+
+			if clientMessage == nil {
+				c.serverLog.Println("unknown msg from server")
+				continue
+			}
+			msgChan <- clientMessage
 		}
 	}
 }
@@ -220,7 +232,7 @@ func (c *Conn) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
 		properWSClose(c.wsConn)
 	}()
 
-	for !c.stopRequested.Load() {
+	for {
 		select {
 		case <-ctx.Done():
 			return
@@ -228,7 +240,6 @@ func (c *Conn) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
 		case msg := <-msgChan:
 			if msg == nil {
 				c.writerLog.Println("the writer channel has been closed, canceling the context")
-				c.cancel()
 				return
 			}
 
@@ -240,11 +251,6 @@ func (c *Conn) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
 
 			if err != nil {
 				c.writerLog.Printf("encountered an error while sending a message: %s", err)
-			}
-
-			if c.stopRequested.Load() {
-				c.cancel()
-				return
 			}
 		}
 	}
@@ -262,6 +268,7 @@ func msgIDFromContext(ctx context.Context) *ws.MessageID {
 }
 
 func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
+	defer c.readerLog.Printf("stopping")
 	for !c.stopRequested.Load() {
 		_, bytes, err := c.wsConn.ReadMessage()
 		if err != nil {
@@ -343,8 +350,8 @@ func (c *Conn) dispose(ctx context.Context) {
 		c.manager.RemovePlayer(ctx, c.sid, *c.playerID)
 	} else {
 		// Manager knows nothing about client, so we just stop threads
-		c.mainLog.Printf("canceling the context")
-		c.cancel()
+		c.mainLog.Printf("closing serv data chan")
+		close(c.servDataChan)
 	}
 }
 
