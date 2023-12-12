@@ -411,15 +411,7 @@ func (u *sessionUpdater) deadlineExpired(ctx context.Context, s *UnsafeStorage) 
 		u.changeStateTo(ctx, ctx, s, u.makeFirstTaskStartedState(s, state))
 
 	case *TaskStartedState:
-		task := s.taskByIdx(u.sid, state.taskIdx)
-		if task == nil {
-			u.log.Panicf("task %d not found", state.taskIdx)
-		}
-		if task.NeedsPoll() {
-			u.changeStateTo(ctx, ctx, s, u.makePollStartedState(s, state))
-		} else {
-			u.changeStateTo(ctx, ctx, s, u.makePlainTaskEndedState(s, state))
-		}
+		u.finishTask(ctx, ctx, s, state)
 
 	case *PollStartedState:
 		u.changeStateTo(ctx, ctx, s, u.makePollTaskEndedState(s, state))
@@ -500,6 +492,15 @@ func (u *sessionUpdater) setPlayerAnswerReady(
 	} else {
 		delete(state.ready, playerID)
 	}
+
+	for _, player := range s.Players(u.sid) {
+		if _, ok := state.ready[player.ID]; !ok {
+			return
+		}
+	}
+
+	u.log.Println("all players are ready; moving on")
+	u.finishTask(ctx, msgCtx, s, state)
 }
 
 func (u *sessionUpdater) setPlayerVote(
@@ -511,6 +512,18 @@ func (u *sessionUpdater) setPlayerVote(
 	vote OptionIdx,
 ) {
 	// TODO
+}
+
+func (u *sessionUpdater) finishTask(ctx context.Context, msgCtx context.Context, s *UnsafeStorage, state *TaskStartedState) {
+	task := s.taskByIdx(u.sid, state.taskIdx)
+	if task == nil {
+		u.log.Panicf("task %d not found", state.taskIdx)
+	}
+	if task.NeedsPoll() {
+		u.changeStateTo(ctx, msgCtx, s, u.makePollStartedState(s, state))
+	} else {
+		u.changeStateTo(ctx, msgCtx, s, u.makePlainTaskEndedState(s, state))
+	}
 }
 
 // finishGame finishes the game normally.
