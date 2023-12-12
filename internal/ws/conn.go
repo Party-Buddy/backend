@@ -140,7 +140,7 @@ func (c *Conn) runServeToWriterConverter(
 		c.serverLog.Println("stopping")
 	}()
 
-	for !c.stopRequested.Load() {
+	for {
 		select {
 		case <-ctx.Done():
 			return
@@ -212,16 +212,13 @@ func (c *Conn) runServeToWriterConverter(
 				clientMessage = &gameEndMsg
 			}
 
-			if c.stopRequested.Load() {
-				c.serverLog.Println("stop requested")
-				return
-			}
 			if clientMessage == nil {
 				c.serverLog.Println("unknown msg from server")
 				continue
 			}
-
-			msgChan <- clientMessage
+			if !c.stopRequested.Load() {
+				msgChan <- clientMessage
+			}
 		}
 	}
 }
@@ -232,7 +229,7 @@ func (c *Conn) runWriter(ctx context.Context, msgChan <-chan ws.RespMessage) {
 		properWSClose(c.wsConn)
 	}()
 
-	for !c.stopRequested.Load() {
+	for {
 		select {
 		case <-ctx.Done():
 			return
