@@ -10,6 +10,20 @@ import (
 	"party-buddy/internal/ws/utils"
 )
 
+func (c *Conn) playerIDOrError(ctx context.Context, msgID *ws.MessageID) bool {
+	if c.playerID == nil {
+		code, message := ws.ErrInternal, "internal error"
+		errMsg := utils.GenMessageError(msgID, code, message)
+		c.readerLog.Printf("the client has not yet joined the session (code `%s`)", code)
+		c.msgToClientChan <- &errMsg
+
+		c.dispose(ctx)
+		return false
+	}
+
+	return true
+}
+
 func (c *Conn) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataChan session.TxChan) {
 	player, err := c.manager.JoinSession(ctx, c.sid, c.client, *m.Nickname, servDataChan)
 	if err != nil {
@@ -26,13 +40,7 @@ func (c *Conn) handleJoin(ctx context.Context, m *ws.MessageJoin, servDataChan s
 }
 
 func (c *Conn) handleReady(ctx context.Context, m *ws.MessageReady) {
-	if c.playerID == nil {
-		code, message := ws.ErrInternal, "internal error"
-		errMsg := utils.GenMessageError(m.MsgID, code, message)
-		c.readerLog.Printf("the client has not yet joined the session (code `%s`)", code)
-		c.msgToClientChan <- &errMsg
-
-		c.dispose(ctx)
+	if !c.playerIDOrError(ctx, m.MsgID) {
 		return
 	}
 
@@ -49,14 +57,7 @@ func (c *Conn) handleReady(ctx context.Context, m *ws.MessageReady) {
 }
 
 func (c *Conn) handleLeave(ctx context.Context, m *ws.MessageLeave) {
-	if c.playerID == nil {
-		// TODO: stop copy-pasting the same thing over and over and over again
-		code, message := ws.ErrInternal, "internal error"
-		errMsg := utils.GenMessageError(m.MsgID, code, message)
-		c.readerLog.Printf("the client has not yet joined the session (code `%s`)", code)
-		c.msgToClientChan <- &errMsg
-
-		c.dispose(ctx)
+	if !c.playerIDOrError(ctx, m.MsgID) {
 		return
 	}
 
@@ -64,13 +65,7 @@ func (c *Conn) handleLeave(ctx context.Context, m *ws.MessageLeave) {
 }
 
 func (c *Conn) handleTaskAnswer(ctx context.Context, m *ws.MessageTaskAnswer) {
-	if c.playerID == nil {
-		code, message := ws.ErrInternal, "internal error"
-		errMsg := utils.GenMessageError(m.MsgID, code, message)
-		c.readerLog.Printf("the client has not yet joined the session (code `%s`)", code)
-		c.msgToClientChan <- &errMsg
-
-		c.dispose(ctx)
+	if !c.playerIDOrError(ctx, m.MsgID) {
 		return
 	}
 
