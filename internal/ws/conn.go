@@ -274,9 +274,7 @@ func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
 		if err != nil {
 			c.readerLog.Printf("ReadMessage failed: %s", err)
 
-			if !c.stopRequested.Load() {
-				c.dispose(ctx)
-			}
+			c.dispose(ctx)
 			return
 		}
 		msg, err := ws.ParseMessage(ctx, bytes)
@@ -288,8 +286,9 @@ func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
 				Error:       *errDto,
 			}
 			c.readerLog.Printf("ParseMessage failed: %s (code `%s`)", err, errDto.Code)
-			c.msgToClientChan <- &rspMessage
-
+			if !c.stopRequested.Load() {
+				c.msgToClientChan <- &rspMessage
+			}
 			c.dispose(ctx)
 			return
 		}
@@ -303,8 +302,9 @@ func (c *Conn) runReader(ctx context.Context, servDataChan session.TxChan) {
 				fmt.Sprintf("the message `%s` is not allowed in the current state", msg.GetKind()))
 			c.readerLog.Printf("received a message `%s`: not allowed in the current state `%s` (error code `%v`)",
 				msg.GetKind(), st.name(), errMsg.Code)
-			c.msgToClientChan <- &errMsg
-
+			if !c.stopRequested.Load() {
+				c.msgToClientChan <- &errMsg
+			}
 			c.dispose(ctx)
 			return
 		}
@@ -346,6 +346,9 @@ func properWSClose(wsConn *websocket.Conn) {
 //
 // Disconnecting because of server initiative is handled in runServeToWriterConverter
 func (c *Conn) dispose(ctx context.Context) {
+	if c.stopRequested.Load() {
+		return
+	}
 	c.mainLog.Println("disconnecting")
 	c.stopRequested.Store(true)
 	if c.playerID != nil { // playerID indicates that client has already joined
