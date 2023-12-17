@@ -20,11 +20,9 @@ func toSessionGame(
 	owner uuid.UUID,
 	gameInfo schemas.FullGameInfo,
 ) (session.Game, []api.ImgReqResponse, error) {
-
-	game := session.Game{}
-	game.Name = *gameInfo.Name
-	game.Description = *gameInfo.Description
 	imgs := make(map[api.ImgRequest]uuid.UUID)
+
+	var imageID session.ImageID
 	if *gameInfo.ImgRequest >= 0 {
 		imgID, err := db.CreateImageMetadata(tx, ctx, owner)
 		if err != nil {
@@ -34,10 +32,11 @@ func toSessionGame(
 				LogMessage: fmt.Sprintf("failed to create img metadata: %s", err),
 			}
 		}
-		game.ImageID = session.ImageID(imgID)
+		imageID = session.ImageID(imgID)
 		imgs[*gameInfo.ImgRequest] = imgID.UUID
 	}
-	tasks := make([]session.Task, len(*gameInfo.Tasks))
+
+	tasks := make([]session.Task, 0, len(*gameInfo.Tasks))
 	for i := 0; i < len(*gameInfo.Tasks); i++ {
 		t, newImgs, err := toSessionTask(ctx, tx, owner, (*gameInfo.Tasks)[i], imgs)
 		if err != nil {
@@ -46,10 +45,19 @@ func toSessionGame(
 		imgs = newImgs
 		tasks = append(tasks, t)
 	}
+
 	imgResps := make([]api.ImgReqResponse, 0)
 	for k, v := range imgs {
 		imgResps = append(imgResps, api.ImgReqResponse{ImgRequest: k, ImgURI: configuration.GenImgURI(v)})
 	}
+
+	game := session.Game{
+		Name:        *gameInfo.Name,
+		Description: *gameInfo.Description,
+		ImageID:     imageID,
+		Tasks:       tasks,
+	}
+
 	return game, imgResps, nil
 }
 
