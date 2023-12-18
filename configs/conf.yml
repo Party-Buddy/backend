@@ -1,0 +1,11 @@
+server:
+  host: localhost
+  port: 8081
+db:
+  driver: postgres
+  host: localhost
+  port: 5432
+  name: party-buddy
+  user: postgres
+img:
+  path: data/images
